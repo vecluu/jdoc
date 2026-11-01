@@ -174,7 +174,9 @@ class EndToEndIT {
         assertThat(lines).anySatisfy(line -> assertThat(line)
                 .matches("T orElseThrow\\(\\) +If a value is present, returns the value, otherwise throws "
                         + "`NoSuchElementException`\\."));
-        assertThat(lines.getLast()).startsWith("inherited from Object: getClass, ");
+        assertThat(lines.getLast()).isEqualTo("inherited from Object: getClass, notify, notifyAll, wait");
+        assertThat(jdoc(app, "method", "java.util.Optional#clone").lines())
+                .contains("java.lang.Object#clone() is protected and java.util.Optional cannot be subclassed");
         assertThat(lines).noneMatch(line -> line.contains("shadowMarker"));
 
         assertThat(jdoc(app, "class", "Optional").lines().getFirst()).endsWith("(jdk 25)");
