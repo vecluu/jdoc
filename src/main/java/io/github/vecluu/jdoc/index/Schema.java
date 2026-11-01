@@ -5,8 +5,8 @@ import java.util.List;
 /** DDL of the index database. Bump {@link #VERSION} on any change: older files are dropped and rebuilt. */
 final class Schema {
 
-    /** Value stored in {@code PRAGMA user_version}. */
-    static final int VERSION = 1;
+    /** Value stored in {@code PRAGMA user_version}. 2: {@code failed_artifacts}. */
+    static final int VERSION = 2;
 
     static final List<String> STATEMENTS = List.of(
             """
@@ -21,6 +21,14 @@ final class Schema {
                 indexed_at   TEXT    NOT NULL
             )""",
             "CREATE INDEX IF NOT EXISTS artifacts_jar_path ON artifacts (jar_path)",
+            """
+            CREATE TABLE IF NOT EXISTS failed_artifacts (
+                artifact_key TEXT    NOT NULL PRIMARY KEY,
+                jar_path     TEXT    NOT NULL,
+                jar_mtime    INTEGER NOT NULL,
+                jar_size     INTEGER NOT NULL,
+                reason       TEXT    NOT NULL
+            ) WITHOUT ROWID""",
             """
             CREATE TABLE IF NOT EXISTS types (
                 id             INTEGER PRIMARY KEY,
