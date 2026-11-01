@@ -37,9 +37,9 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | T13 | done | `tasks/notes/T13.md` |
 | T14 | done | `tasks/notes/T14.md` |
 | T15 | done | `tasks/notes/T15.md` |
-| T16 | done (uncommitted) | `tasks/notes/T16.md` |
-| T17 | todo | `tasks/notes/T17.md` |
+| T16 | done | `tasks/notes/T16.md` |
+| T17 | in progress | `tasks/notes/T17.md` |
 | T18 | todo | `tasks/notes/T18.md` |
-| T19 | todo | `tasks/notes/T19.md` |
+| T19 | in progress | `tasks/notes/T19.md` |
 | T20 | todo | `tasks/notes/T20.md` |
-| T21 | todo | `tasks/notes/T21.md` |
+| T21 | in progress | `tasks/notes/T21.md` |
