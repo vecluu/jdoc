@@ -70,7 +70,7 @@ class LookupIT {
                         "double area()", "Circle scale(double factor)", "double diameter()");
         assertThat(view.inherited()).extracting(group -> group.declaringType().name().simpleName())
                 .containsExactly("AbstractShape", "Shape", "Object");
-        assertThat(view.inherited().get(0).names()).containsExactly("color", "name", "checkFactor");
+        assertThat(view.inherited().get(0).names()).containsExactly("color", "name");
         assertThat(view.inherited().get(1).names()).containsExactly("DEFAULT_UNIT", "describe", "compareTo");
         assertThat(view.inherited().get(2).names()).containsExactly("equals", "getClass", "hashCode", "toString");
     }

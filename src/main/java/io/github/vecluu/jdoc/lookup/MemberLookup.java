@@ -32,13 +32,21 @@ public sealed interface MemberLookup
      * @param reference   the parsed reference
      * @param suggestions member references worth trying: the overloads with that name when the parameters did not
      *                    match, otherwise members with similar names (may be empty)
+     * @param protectedInherited inherited protected members that match the reference but are left out because the
+     *                    type cannot be subclassed ({@link TypeMembers#inheritedForSubclassesOnly}); usually empty
      */
-    record MemberNotFound(LocatedType type, MemberReference reference, List<String> suggestions)
-            implements MemberLookup {
+    record MemberNotFound(LocatedType type, MemberReference reference, List<String> suggestions,
+                          List<MemberMatch> protectedInherited) implements MemberLookup {
         public MemberNotFound {
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(reference, "reference");
             suggestions = List.copyOf(suggestions);
+            protectedInherited = List.copyOf(protectedInherited);
+        }
+
+        /** A not-found outcome without hidden protected matches. */
+        public MemberNotFound(LocatedType type, MemberReference reference, List<String> suggestions) {
+            this(type, reference, suggestions, List.of());
         }
     }
 

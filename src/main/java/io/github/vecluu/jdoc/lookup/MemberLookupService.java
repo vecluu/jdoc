@@ -20,6 +20,8 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>Candidates are the queried type's own API members; only if none matches are inherited members tried
  * (constructors are never inherited), each reported with its declaring type. Every matching overload is returned.
+ * Inherited protected members of a type that cannot be subclassed are not candidates; when they would have matched,
+ * the not-found outcome carries them so the caller can explain why.
  */
 @RequiredArgsConstructor
 public final class MemberLookupService {
@@ -66,7 +68,9 @@ public final class MemberLookupService {
         }
         List<MemberMatch> all = new ArrayList<>(own);
         all.addAll(inherited);
-        return new MemberLookup.MemberNotFound(type, reference, suggestions(all, reference));
+        List<MemberMatch> protectedMatches = reference.constructor() ? List.of()
+                : matching(typeMembers.inheritedForSubclassesOnly(type, scope), reference);
+        return new MemberLookup.MemberNotFound(type, reference, suggestions(all, reference), protectedMatches);
     }
 
     private List<MemberMatch> matching(List<MemberMatch> candidates, MemberReference reference) {
