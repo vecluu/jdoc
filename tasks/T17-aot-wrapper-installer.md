@@ -5,7 +5,7 @@ mode), `scripts/bench-startup.sh` usage; minimal Java changes only if the traini
 **Depends on:** T14, T15, T16 (the cache must be trained on the final class set; read their notes).
 **Spec:** `OUTLINE.md` "Build and airgap transfer" (wrapper and installer as originally drafted, release bundle
 layout), `docs/STARTUP-RESEARCH.md` section 1 (all validated commands, constraints and pitfalls). This task brings
-the wrapper and installer into scope; CI pipeline, `assemble.sh` and the skill files remain out of scope.
+the wrapper and installer into scope; CI pipeline, `assemble.sh` and the skill files are T18.
 
 ## Goal
 An installed jdoc starts warm calls in roughly 200 ms or less, safely: a stale or mismatched cache never makes a
@@ -42,3 +42,9 @@ call slower or noisier than running without a cache.
   - verifies no file is created under `/tmp` by sqlite per call.
   Skip gracefully (assumption) if the platform is not Linux.
 - `shellcheck`-clean scripts if `shellcheck` is available (do not require it).
+
+## Packaging note (added with T18 in scope)
+The installer runs from the extracted release bundle (`OUTLINE.md` "Release bundle": `bin/jdoc`, `lib/jdoc.jar`,
+`skill/SKILL.md`, `VERSION`, `install.sh`). Design paths for that layout; T18 assembles the tarball afterwards.
+Anything produced at install time (AOT cache, sqlite library, fingerprint) lives under the install prefix, never
+in the bundle.

@@ -61,3 +61,6 @@ You implement one task of `jdoc`, a Java 25 CLI described in `OUTLINE.md`. Read,
   unit test). Use `FooTest` / `FooIT`.
 - `OUTLINE.md` is kept in sync with decisions by the orchestrator. If your task changes a spec-level decision,
   say so in your notes; do not edit `OUTLINE.md` yourself.
+- Commits are made by the orchestrator after verifying your task, as scoped commits in the form
+  `<gitmoji> <type>(<scope>): <subject>` (conventional commits + gitmoji). In your notes, propose how your change
+  splits into scoped commits (message + paths). You still never commit or push yourself.

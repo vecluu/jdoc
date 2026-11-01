@@ -14,7 +14,8 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | 5 | T11 Inherited protected members · T12 Member camel humps · T13 Failed-jar memo · T14 Drop picocli | yes (T12/T13 touch `index` in separate classes, schema bump only in T13; T14 only `cli` + pom) | T10 |
 | 6 | T15 Rendered docs stored in the index | alone (schema, indexer and lookup all change) | T11–T13 |
 | 7 | T16 Hot-path audit + benchmark harness | alone | T14, T15 |
-| 8 | T17 AOT cache, wrapper, installer | alone | T16 (cache trained on final classes) |
+| 8 | T17 AOT cache, wrapper, installer · T19 Real-Maven validation | yes (T17: `dist/`; T19: `module`) | T16; T19 needs Maven installed |
+| 9 | T18 Release packaging, smoke test, skill files, CI | alone | T17, T19 |
 
 ## Status
 
@@ -37,3 +38,5 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | T15 | todo | `tasks/notes/T15.md` |
 | T16 | todo | `tasks/notes/T16.md` |
 | T17 | todo | `tasks/notes/T17.md` |
+| T18 | todo | `tasks/notes/T18.md` |
+| T19 | todo | `tasks/notes/T19.md` |
