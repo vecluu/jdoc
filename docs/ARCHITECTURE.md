@@ -47,7 +47,7 @@ Arrows show allowed dependencies; nothing may depend "upwards" (e.g. `index` mus
 | `text` | T07 | Output primitives: pagination, token budget, column alignment, header line | `model` |
 | `query` | T07 | Query syntax and pure matching: `Type#name(params)` parsing, camel humps, overload matching | `model` |
 | `indexer` | T08 | Lazy/forced indexing of artifacts and the JDK, per-type doc-source fallback, refresh | everything above except `query`, `text` |
-| `lookup` | T09 | Read-side services: type resolution, hierarchy, find, impls, member search, on-demand docs and source | `index`, `source`, `javadoc`, `bytecode`, `decompile`, `query`, `model`, `config`, `error` |
+| `lookup` | T09 | Read-side services: type resolution, hierarchy, find, impls, member search, docs from the index (inheritance resolved at lookup time), on-demand source | `index`, `source`, `javadoc`, `bytecode`, `decompile`, `query`, `model`, `config`, `error` |
 | `app` | T10 | One application service per command, producing `CommandResult` | all of the above |
 | `cli` | T10, T14 | hand-written command-line parser and help, exit codes, composition root | `app`, `config`, `text`; the composition root may import every package |
 
@@ -140,7 +140,19 @@ Tables follow `OUTLINE.md` with these refinements:
 - `supertypes`: type id, supertype binary name. Index on supertype binary name (for `impls`).
 - `members`: id, type id, name, kind, signature, parameter list (stored as a compact text encoding), visibility,
   static, deprecated, first sentence, member offsets, doc offsets. Index on name (case-insensitive).
-- Deleting an artifact cascades to its types, supertypes and members.
+- `type_docs` (type id), `member_docs` (member id), `package_docs` (artifact id + package): the full rendered doc
+  (`RenderedDoc`: description, first sentence, block-tag lines, `inheritsDoc`) as a compact blob (varint-prefixed
+  UTF-8 strings, deflated when ≥ 160 bytes and smaller; `index.DocCodec`). Kept out of `types`/`members` so name scans
+  stay small. A missing doc is no row; decompiled types never have docs. Package docs come from `package-info.java`
+  (sources jar or `src.zip`), else `package-summary.html`.
+- Deleting an artifact cascades to its types, supertypes, members and all their docs.
+
+**Docs are stored at index time (T15, reverses the original "first sentence only, parse on demand" decision).**
+Reason: startup cost. Parsing the declaring type's source with javac and rendering javadoc HTML with jsoup on every
+`method`/`class`/`package` call loaded ~1,300 classes and cost ~130 ms (javac init) + ~35 ms (jsoup) per call, more
+than the query itself (`docs/STARTUP-RESEARCH.md`). Cost: the JDK index grows from ~18 MB to ~31 MB (docs deflated:
+~44 MB without compression) and indexing the JDK takes about the same time (~4 s). `{@inheritDoc}` and undocumented
+overrides are still resolved at lookup time over the stored docs, because supertypes may live in other artifacts.
 
 Every read query is scoped to a **set of artifact ids** (the current module's classpath plus the JDK).
 
@@ -150,7 +162,10 @@ Every read query is scoped to a **set of artifact ids** (the current module's cl
 2. `module.ClasspathResolver` → `ModuleClasspath` (cache hit: read `deps.txt`; miss: run Maven).
 3. `indexer.ClasspathIndexer` ensures the JDK and every jar on the classpath is indexed and current
    (stat mtime/size; re-index only changed jars; under the file lock).
-4. `app` service for the command uses `lookup` services scoped to those artifact ids.
+4. `app` service for the command uses `lookup` services scoped to those artifact ids. Every command except `source`
+   answers from SQLite alone (docs included): no javac, jsoup, ASM or Vineflower is loaded. `source` reads the jar entry
+   and parses it (javac) or decompiles (Vineflower). The composition root creates the indexing components (ASM scanner,
+   javadoc-page parser, javac parsers) only when step 3 actually has to index something.
 5. Result is a `CommandResult` (exit code + lines); `cli` paginates with `text` and prints.
 
 ## Exit codes
