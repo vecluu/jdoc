@@ -144,6 +144,19 @@ public final class JdbcTypeRepository implements TypeRepository {
     }
 
     @Override
+    public List<IndexedType> findNested(TypeName outer, Collection<Long> artifactIds) {
+        if (artifactIds.isEmpty()) {
+            return List.of();
+        }
+        // '%' is the character after '$': the range holds exactly the binary names starting with "outer$".
+        return select(" WHERE t.binary_name > ? AND t.binary_name < ? AND" + SCOPED, s -> {
+            s.setString(1, outer.binaryName() + "$");
+            s.setString(2, outer.binaryName() + "%");
+            s.setString(3, IdList.json(artifactIds));
+        });
+    }
+
+    @Override
     public List<IndexedType> searchByName(String text, Collection<Long> artifactIds, int limit) {
         if (artifactIds.isEmpty() || limit <= 0) {
             return List.of();
@@ -162,6 +175,20 @@ public final class JdbcTypeRepository implements TypeRepository {
         }
         return sql.query("SELECT t.id, t.artifact_id, t.binary_name FROM types t WHERE" + SCOPED + ORDER,
                 s -> s.setString(1, IdList.json(artifactIds)),
+                row -> new TypeRef(row.getLong(1), row.getLong(2), TypeName.of(row.getString(3))));
+    }
+
+    @Override
+    public List<TypeRef> listNames(Collection<Long> artifactIds, NameColumn column, String subsequence) {
+        Objects.requireNonNull(column, "column");
+        if (artifactIds.isEmpty()) {
+            return List.of();
+        }
+        return sql.query("SELECT t.id, t.artifact_id, t.binary_name FROM types t WHERE " + column.sql()
+                        + " LIKE ? ESCAPE '\\' AND" + SCOPED + ORDER, s -> {
+                    s.setString(1, IdList.subsequencePattern(subsequence));
+                    s.setString(2, IdList.json(artifactIds));
+                },
                 row -> new TypeRef(row.getLong(1), row.getLong(2), TypeName.of(row.getString(3))));
     }
 

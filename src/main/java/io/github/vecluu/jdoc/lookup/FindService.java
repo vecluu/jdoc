@@ -2,6 +2,7 @@ package io.github.vecluu.jdoc.lookup;
 
 import io.github.vecluu.jdoc.index.MemberRepository;
 import io.github.vecluu.jdoc.index.TypeRef;
+import io.github.vecluu.jdoc.index.TypeRepository;
 import io.github.vecluu.jdoc.model.IndexedMember;
 import io.github.vecluu.jdoc.model.IndexedType;
 import io.github.vecluu.jdoc.model.TypeName;
@@ -20,8 +21,9 @@ import lombok.RequiredArgsConstructor;
 /**
  * {@code jdoc find <pattern>}: API types and members whose names match a {@link NamePattern}.
  *
- * <p>Types are matched in memory over every type name in scope (exact, prefix, camel humps, substring; a pattern
- * with a {@code .} is matched against the display name {@code java.util.Map.Entry} instead of the simple name).
+ * <p>Types are matched in memory (exact, prefix, camel humps, substring; a pattern with a {@code .} is matched against
+ * the display name {@code java.util.Map.Entry} instead of the simple name) over the type names in scope that the index
+ * pre-selects as containing the pattern's ASCII characters in order (a superset of every match).
  * Members of an all-lower-case pattern are pre-selected in the index by a case-insensitive substring of the pattern;
  * for a camel-hump pattern (one with an upper-case letter) the index lists the distinct member names that contain the
  * pattern's ASCII characters in order (a superset of every hump, prefix and substring match), these are matched in
@@ -67,7 +69,9 @@ public final class FindService {
         record Scored(TypeRef ref, NameMatch score) {
         }
         List<Scored> scored = new ArrayList<>();
-        for (TypeRef ref : types.repository().listNames(scope.artifactIds())) {
+        TypeRepository.NameColumn column = qualified ? TypeRepository.NameColumn.DISPLAY_NAME
+                : TypeRepository.NameColumn.SIMPLE_NAME;
+        for (TypeRef ref : types.repository().listNames(scope.artifactIds(), column, asciiOnly(pattern.pattern()))) {
             String name = qualified ? ref.name().displayName() : ref.name().simpleName();
             pattern.match(name).ifPresent(score -> scored.add(new Scored(ref, score)));
         }

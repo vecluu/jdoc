@@ -138,11 +138,16 @@ public final class JdbcMemberRepository implements MemberRepository {
         if (names.isEmpty() || artifactIds.isEmpty() || limit <= 0) {
             return List.of();
         }
-        return sql.query(SELECT + " WHERE m.name" + IdList.IN_LIST + " AND" + SCOPED + ORDER + " LIMIT ?", s -> {
-            s.setString(1, IdList.jsonStrings(names));
-            s.setString(2, IdList.json(artifactIds));
-            s.setInt(3, limit);
-        }, JdbcMemberRepository::map);
+        // The NOCASE comparison lets SQLite use the members_name index (a plain IN on m.name compares BINARY and
+        // scans every member in scope); the second IN keeps the match exact.
+        String json = IdList.jsonStrings(names);
+        return sql.query(SELECT + " WHERE m.name COLLATE NOCASE" + IdList.IN_LIST + " AND m.name" + IdList.IN_LIST
+                + " AND" + SCOPED + ORDER + " LIMIT ?", s -> {
+                    s.setString(1, json);
+                    s.setString(2, json);
+                    s.setString(3, IdList.json(artifactIds));
+                    s.setInt(4, limit);
+                }, JdbcMemberRepository::map);
     }
 
     private static IndexedMember map(ResultSet row) throws SQLException {

@@ -136,6 +136,43 @@ class JdbcTypeRepositoryTest {
     }
 
     @Test
+    void findsNestedTypesByBinaryNamePrefix() {
+        types.insertAll(libA, List.of(type("a.b.X"), type("a.b.X$Inner"), type("a.b.X$Inner$Deep"),
+                type("a.b.XY"), type("a.b.X0"), type("a.b.Y$Inner")));
+        types.insertAll(libB, List.of(type("a.b.X$Other")));
+        TypeName x = TypeName.of("a.b.X");
+
+        assertThat(types.findNested(x, List.of(libA))).extracting(t -> t.name().binaryName())
+                .containsExactly("a.b.X$Inner", "a.b.X$Inner$Deep");
+        assertThat(types.findNested(x, List.of(libA, libB))).hasSize(3);
+        assertThat(types.findNested(TypeName.of("a.b.X$Inner"), List.of(libA))).extracting(t -> t.name().binaryName())
+                .containsExactly("a.b.X$Inner$Deep");
+        assertThat(types.findNested(TypeName.of("a.b.XY"), List.of(libA))).isEmpty();
+        assertThat(types.findNested(x, List.of())).isEmpty();
+    }
+
+    @Test
+    void listsNamesFilteredBySubsequenceOfSimpleOrDisplayName() {
+        types.insertAll(libA, List.of(type("org.http.HttpServletRequest"), type("org.http.HttpClient"),
+                type("java.util.Map$Entry"), type("org.x.My_Type")));
+        types.insertAll(libB, List.of(type("q.HttpServer")));
+        List<Long> scope = List.of(libA);
+
+        assertThat(types.listNames(scope, TypeRepository.NameColumn.SIMPLE_NAME, "HSR"))
+                .extracting(ref -> ref.name().simpleName()).containsExactly("HttpServletRequest");
+        assertThat(types.listNames(scope, TypeRepository.NameColumn.SIMPLE_NAME, "http"))
+                .extracting(ref -> ref.name().simpleName()).containsExactly("HttpClient", "HttpServletRequest");
+        assertThat(types.listNames(scope, TypeRepository.NameColumn.SIMPLE_NAME, "util")).isEmpty();
+        assertThat(types.listNames(scope, TypeRepository.NameColumn.DISPLAY_NAME, "util.Map.E"))
+                .extracting(ref -> ref.name().binaryName()).containsExactly("java.util.Map$Entry");
+        assertThat(types.listNames(scope, TypeRepository.NameColumn.SIMPLE_NAME, "M_T"))
+                .extracting(ref -> ref.name().simpleName()).containsExactly("My_Type");
+        assertThat(types.listNames(scope, TypeRepository.NameColumn.SIMPLE_NAME, "%")).isEmpty();
+        assertThat(types.listNames(scope, TypeRepository.NameColumn.SIMPLE_NAME, "")).hasSize(4);
+        assertThat(types.listNames(List.of(), TypeRepository.NameColumn.SIMPLE_NAME, "H")).isEmpty();
+    }
+
+    @Test
     void findsTypesWithoutSourceDocs() {
         TypeDescriptor fromJavadoc = type("p.Generated").toBuilder().docSource(DocSource.JAVADOC)
                 .entryPath("p/Generated.html").build();

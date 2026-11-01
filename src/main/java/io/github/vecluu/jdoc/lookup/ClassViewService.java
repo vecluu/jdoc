@@ -41,8 +41,7 @@ public final class ClassViewService {
 
     private List<LocatedType> nestedTypes(LocatedType type, LookupScope scope) {
         TypeName outer = type.name();
-        return types.locate(types.repository().findByPackage(outer.packageName(), List.of(type.artifact().id())),
-                        scope).stream()
+        return types.locate(types.repository().findNested(outer, List.of(type.artifact().id())), scope).stream()
                 .filter(candidate -> candidate.name().outerName().equals(Optional.of(outer)))
                 .filter(types::isApiVisible)
                 .sorted(Comparator.comparing(candidate -> candidate.name().simpleName()))

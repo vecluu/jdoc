@@ -40,11 +40,43 @@ public interface TypeRepository {
     /** All types of one package (top-level and nested). */
     List<IndexedType> findByPackage(String packageName, Collection<Long> artifactIds);
 
+    /**
+     * The types nested in {@code outer} at any depth (binary names starting with {@code outer$}); one range scan of
+     * the binary-name index instead of reading the whole package.
+     */
+    List<IndexedType> findNested(TypeName outer, Collection<Long> artifactIds);
+
     /** Types whose display name contains {@code text}, ignoring (ASCII) case; at most {@code limit} rows. */
     List<IndexedType> searchByName(String text, Collection<Long> artifactIds, int limit);
 
     /** Every type name in scope, for name matching done in Java (e.g. camel humps). */
     List<TypeRef> listNames(Collection<Long> artifactIds);
+
+    /**
+     * The type names in scope whose {@code column} contains the characters of {@code subsequence} in order, with
+     * anything in between, ignoring ASCII case like {@code LIKE} (other characters compare exactly); an empty
+     * {@code subsequence} lists every name. Used by {@code jdoc find} to pre-select the names it matches in memory:
+     * every prefix, substring and camel-hump match of a pattern contains the pattern's ASCII characters this way.
+     */
+    List<TypeRef> listNames(Collection<Long> artifactIds, NameColumn column, String subsequence);
+
+    /** The name column {@link #listNames(Collection, NameColumn, String)} filters on. */
+    enum NameColumn {
+        /** {@code Entry} of {@code java.util.Map$Entry}. */
+        SIMPLE_NAME("t.simple_name"),
+        /** {@code java.util.Map.Entry}. */
+        DISPLAY_NAME("t.display_name");
+
+        private final String sql;
+
+        NameColumn(String sql) {
+            this.sql = sql;
+        }
+
+        String sql() {
+            return sql;
+        }
+    }
 
     /** Distinct package names in scope, sorted. */
     List<String> listPackages(Collection<Long> artifactIds);
