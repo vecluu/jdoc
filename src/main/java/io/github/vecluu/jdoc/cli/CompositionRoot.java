@@ -16,6 +16,7 @@ import io.github.vecluu.jdoc.decompile.VineflowerDecompiler;
 import io.github.vecluu.jdoc.index.FileIndexLock;
 import io.github.vecluu.jdoc.index.IndexDatabase;
 import io.github.vecluu.jdoc.index.JdbcArtifactRepository;
+import io.github.vecluu.jdoc.index.JdbcFailedArtifactRepository;
 import io.github.vecluu.jdoc.index.JdbcMemberRepository;
 import io.github.vecluu.jdoc.index.JdbcSupertypeRepository;
 import io.github.vecluu.jdoc.index.JdbcTypeRepository;
@@ -66,7 +67,8 @@ public final class CompositionRoot {
             JdbcTypeRepository types = new JdbcTypeRepository(database);
             JdbcSupertypeRepository supertypes = new JdbcSupertypeRepository(database);
             JdbcMemberRepository members = new JdbcMemberRepository(database);
-            SqliteIndexStore store = new SqliteIndexStore(database, artifacts, types, members);
+            SqliteIndexStore store = new SqliteIndexStore(database, artifacts, types, members,
+                    new JdbcFailedArtifactRepository(database));
 
             ClasspathIndexer indexer = new ClasspathIndexer(
                     store,

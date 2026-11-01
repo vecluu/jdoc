@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.vecluu.jdoc.config.JdkInfo;
 import io.github.vecluu.jdoc.error.JarReadException;
+import io.github.vecluu.jdoc.index.FailedArtifact;
 import io.github.vecluu.jdoc.index.IndexLock;
 import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.DocSource;
@@ -40,6 +41,7 @@ class ClasspathIndexerTest {
     private final List<Gav> indexedArtifacts = new ArrayList<>();
     private final List<Gav> evicted = new ArrayList<>();
     private final Set<Gav> failing = new HashSet<>();
+    private final List<Gav> attempts = new ArrayList<>();
     private int jdkIndexed;
     private final CountingLock lock = new CountingLock();
 
@@ -64,6 +66,7 @@ class ClasspathIndexerTest {
 
     private ArtifactIndexer artifactIndexer() {
         return (gav, jar, stamp) -> {
+            attempts.add(gav);
             if (failing.contains(gav)) {
                 throw new JarReadException("corrupt " + jar);
             }
@@ -266,7 +269,8 @@ class ClasspathIndexerTest {
 
         IndexResult result = index(IndexOptions.lookup());
 
-        assertThat(result.report().failures()).singleElement().asString().startsWith("a 1.0: corrupt");
+        assertThat(result.report().failures()).containsExactly(
+                new IndexFailure(ArtifactKey.maven(A), "corrupt " + JAR_A, false));
         assertThat(result.classpath().artifactIds()).contains(oldId);
         assertThat(result.report().artifactsIndexed()).isZero();
     }
@@ -279,6 +283,116 @@ class ClasspathIndexerTest {
 
         assertThat(result.classpath().artifacts().values()).doesNotContain(ArtifactKey.maven(B));
         assertThat(result.report().failures()).hasSize(1);
+    }
+
+    @Test
+    void failedUnchangedJarIsSkippedWithoutLockingAndReportedAsPreviouslyFailed() {
+        failing.add(B);
+        index(IndexOptions.lookup());
+        assertThat(attempts).containsExactly(A, B);
+        assertThat(store.findFailure(ArtifactKey.maven(B))).contains(
+                new FailedArtifact(ArtifactKey.maven(B), JAR_B, 2000, 20, "corrupt " + JAR_B));
+
+        IndexResult second = index(IndexOptions.lookup());
+
+        assertThat(attempts).containsExactly(A, B);
+        assertThat(lock.acquired).isEqualTo(1);
+        assertThat(second.report().failures()).containsExactly(
+                new IndexFailure(ArtifactKey.maven(B), "corrupt " + JAR_B, true));
+        assertThat(second.report().artifactsReused()).isEqualTo(2);
+        assertThat(second.classpath().artifacts().values()).containsExactly(ArtifactKey.maven(A),
+                ArtifactKey.jdk(25));
+    }
+
+    @Test
+    void changedJarIsRetriedAndTheNewStateRemembered() {
+        failing.add(B);
+        index(IndexOptions.lookup());
+
+        files.put(JAR_B, new FileStamp(2001, 20));
+        IndexResult changedMtime = index(IndexOptions.lookup());
+        files.put(JAR_B, new FileStamp(2001, 21));
+        IndexResult changedSize = index(IndexOptions.lookup());
+        IndexResult unchanged = index(IndexOptions.lookup());
+
+        assertThat(attempts).containsExactly(A, B, B, B);
+        assertThat(lock.acquired).isEqualTo(3);
+        assertThat(changedMtime.report().failures()).extracting(IndexFailure::previouslyFailed).containsExactly(false);
+        assertThat(changedSize.report().failures()).extracting(IndexFailure::previouslyFailed).containsExactly(false);
+        assertThat(unchanged.report().failures()).extracting(IndexFailure::previouslyFailed).containsExactly(true);
+        assertThat(store.findFailure(ArtifactKey.maven(B)).orElseThrow().matches(JAR_B, 2001, 21)).isTrue();
+    }
+
+    @Test
+    void repairedJarIsIndexedAndItsFailureForgotten() {
+        failing.add(B);
+        index(IndexOptions.lookup());
+        failing.clear();
+        files.put(JAR_B, new FileStamp(3000, 30));
+
+        IndexResult result = index(IndexOptions.lookup());
+
+        assertThat(result.report().failures()).isEmpty();
+        assertThat(result.classpath().artifacts().values()).contains(ArtifactKey.maven(B));
+        assertThat(store.findFailure(ArtifactKey.maven(B))).isEmpty();
+    }
+
+    @Test
+    void forceRetriesAnUnchangedFailedJar() {
+        failing.add(B);
+        index(IndexOptions.lookup());
+        attempts.clear();
+
+        IndexResult stillFailing = index(IndexOptions.indexCommand(true));
+        failing.clear();
+        IndexResult repaired = index(IndexOptions.indexCommand(true));
+
+        assertThat(attempts).containsExactly(A, B, A, B);
+        assertThat(stillFailing.report().failures()).containsExactly(
+                new IndexFailure(ArtifactKey.maven(B), "corrupt " + JAR_B, false));
+        assertThat(repaired.report().failures()).isEmpty();
+        assertThat(store.findFailure(ArtifactKey.maven(B))).isEmpty();
+    }
+
+    @Test
+    void previouslyFailedJarKeepsItsOlderIndexInScope() {
+        index(IndexOptions.lookup());
+        long oldId = store.find(ArtifactKey.maven(A)).orElseThrow().id();
+        failing.add(A);
+        files.put(JAR_A, new FileStamp(1001, 10));
+        index(IndexOptions.lookup());
+        attempts.clear();
+
+        IndexResult result = index(IndexOptions.lookup());
+
+        assertThat(attempts).isEmpty();
+        assertThat(lock.acquired).isEqualTo(2);
+        assertThat(result.classpath().artifactIds()).contains(oldId);
+        assertThat(result.report().failures()).extracting(IndexFailure::previouslyFailed).containsExactly(true);
+    }
+
+    @Test
+    void failureRecordedByAnotherProcessWhileWaitingIsNotRetried() {
+        failing.add(B);
+        lock.onAcquire = () -> store.recordFailure(
+                new FailedArtifact(ArtifactKey.maven(B), JAR_B, 2000, 20, "corrupt elsewhere"));
+
+        IndexResult result = index(IndexOptions.lookup());
+
+        assertThat(attempts).containsExactly(A);
+        assertThat(result.report().failures()).containsExactly(
+                new IndexFailure(ArtifactKey.maven(B), "corrupt elsewhere", true));
+    }
+
+    @Test
+    void failureOfAnotherJarStateDoesNotPreventIndexing() {
+        store.recordFailure(new FailedArtifact(ArtifactKey.maven(A), Path.of("/old/a-1.0.jar"), 1000, 10, "old"));
+
+        IndexResult result = index(IndexOptions.lookup());
+
+        assertThat(attempts).containsExactly(A, B);
+        assertThat(result.report().failures()).isEmpty();
+        assertThat(store.findFailure(ArtifactKey.maven(A))).isEmpty();
     }
 
     @Test

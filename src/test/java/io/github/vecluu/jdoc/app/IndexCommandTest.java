@@ -4,6 +4,7 @@ import static io.github.vecluu.jdoc.app.CommandTestSupport.lines;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.vecluu.jdoc.indexer.ArtifactWithoutSources;
+import io.github.vecluu.jdoc.indexer.IndexFailure;
 import io.github.vecluu.jdoc.indexer.IndexOptions;
 import io.github.vecluu.jdoc.indexer.IndexReport;
 import io.github.vecluu.jdoc.indexer.TypeWithoutSources;
@@ -46,7 +47,8 @@ class IndexCommandTest {
                 new ArtifactWithoutSources(ArtifactKey.maven(Gav.of("com.acme", "gen", "2.0")), List.of(
                         new TypeWithoutSources(TypeName.of("com.acme.Model"), DocSource.JAVADOC))),
                 new ArtifactWithoutSources(ArtifactKey.maven(Gav.of("org.x", "big", "1.0")), many)),
-                List.of("broken 1.0: cannot read\njar"));
+                List.of(new IndexFailure(ArtifactKey.maven(Gav.of("g", "broken", "1.0")), "cannot read\njar", false),
+                        new IndexFailure(ArtifactKey.maven(Gav.of("g", "corrupt", "2.1")), "bad zip", true)));
         FakeModuleContext context = index.context().reporting(report);
 
         CommandResult result = new IndexCommand(context).run(true, Optional.empty());
@@ -72,7 +74,8 @@ class IndexCommandTest {
                 "    g.Tk  decompiled",
                 "    ... and 2 more",
                 "failed to index:",
-                "  broken 1.0: cannot read jar");
+                "  broken 1.0: cannot read jar",
+                "  corrupt 2.1: bad zip  (previously failed; retried when the jar changes or with --force)");
     }
 
     @Test

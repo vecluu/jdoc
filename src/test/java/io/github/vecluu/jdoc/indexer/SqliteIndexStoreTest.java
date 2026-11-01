@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.vecluu.jdoc.index.IndexDatabase;
+import io.github.vecluu.jdoc.index.FailedArtifact;
 import io.github.vecluu.jdoc.index.JdbcArtifactRepository;
+import io.github.vecluu.jdoc.index.JdbcFailedArtifactRepository;
 import io.github.vecluu.jdoc.index.JdbcMemberRepository;
 import io.github.vecluu.jdoc.index.JdbcTypeRepository;
 import io.github.vecluu.jdoc.model.ArtifactKey;
@@ -38,7 +40,7 @@ class SqliteIndexStoreTest {
         database = IndexDatabase.open(dir.resolve("index.db"), Duration.ofSeconds(5));
         types = new JdbcTypeRepository(database);
         store = new SqliteIndexStore(database, new JdbcArtifactRepository(database), types,
-                new JdbcMemberRepository(database));
+                new JdbcMemberRepository(database), new JdbcFailedArtifactRepository(database));
     }
 
     @AfterEach
@@ -96,5 +98,28 @@ class SqliteIndexStoreTest {
 
         assertThat(store.find(KEY)).contains(old.artifact());
         assertThat(types.countByArtifact(old.artifact().id())).isEqualTo(1);
+    }
+
+    @Test
+    void remembersFailuresUntilTheArtifactIsReplaced() {
+        FailedArtifact failure = new FailedArtifact(KEY, Path.of("/a.jar"), 1, 7, "zip END header not found");
+        store.recordFailure(failure);
+        assertThat(store.findFailure(KEY)).contains(failure);
+
+        store.replace(artifact(7), EntryProducer.of(List.of()));
+
+        assertThat(store.findFailure(KEY)).isEmpty();
+    }
+
+    @Test
+    void failingReplaceKeepsTheRememberedFailure() {
+        FailedArtifact failure = new FailedArtifact(KEY, Path.of("/a.jar"), 1, 7, "broken");
+        store.recordFailure(failure);
+
+        assertThatThrownBy(() -> store.replace(artifact(7), sink -> {
+            throw new IllegalStateException("parse failure");
+        })).hasMessage("parse failure");
+
+        assertThat(store.findFailure(KEY)).contains(failure);
     }
 }

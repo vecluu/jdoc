@@ -11,8 +11,8 @@ import java.util.List;
  * @param membersIndexed   members written by this call
  * @param missingSources   per artifact (classpath order, JDK excluded), API types without a source file; empty
  *                         unless requested with {@link IndexOptions#reportMissingSources()}
- * @param failures         one line per artifact that could not be indexed (it is left out of scope unless an
- *                         older index of it exists)
+ * @param failures         artifacts that could not be indexed, now or (unchanged jar) in an earlier call; each is
+ *                         left out of scope unless an older index of it exists
  */
 public record IndexReport(
         int artifactsIndexed,
@@ -20,7 +20,7 @@ public record IndexReport(
         int typesIndexed,
         int membersIndexed,
         List<ArtifactWithoutSources> missingSources,
-        List<String> failures) {
+        List<IndexFailure> failures) {
 
     public IndexReport {
         missingSources = missingSources == null ? List.of() : List.copyOf(missingSources);

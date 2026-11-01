@@ -2,6 +2,7 @@ package io.github.vecluu.jdoc.indexer;
 
 import io.github.vecluu.jdoc.config.JdkInfo;
 import io.github.vecluu.jdoc.error.JdocException;
+import io.github.vecluu.jdoc.index.FailedArtifact;
 import io.github.vecluu.jdoc.index.IndexLock;
 import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.Gav;
@@ -31,6 +32,10 @@ import lombok.extern.slf4j.Slf4j;
  * needs indexing; after acquiring it the need is checked again, because another process may have done the work
  * while this one waited. Jars missing on disk are skipped (debug log). Re-indexing an artifact drops its cached
  * decompiled sources. An artifact that fails to index is reported and skipped, never failing the call.
+ *
+ * <p>A failure is remembered in the store with the jar's path, mtime and size. While the jar stays unchanged, later
+ * calls do not retry it (and so do not take the lock for it); they report it as previously failed. A changed jar or a
+ * forced run retries it; a successful index forgets the failure.
  *
  * <p>Like the {@link IndexStore} it uses, an instance must be confined to one thread at a time.
  */
@@ -67,20 +72,20 @@ public final class ClasspathIndexer {
     public IndexResult index(ModuleClasspath classpath, IndexOptions options) {
         List<Target> targets = targets(classpath, options);
         Map<ArtifactKey, IndexedArtifact> inScope = new LinkedHashMap<>();
+        List<IndexFailure> failures = new ArrayList<>();
         List<Target> pending = new ArrayList<>();
         for (Target target : targets) {
             Optional<IndexedArtifact> indexed = store.find(target.key());
-            if (target.needsIndexing(indexed)) {
-                pending.add(target);
-            } else {
+            if (!target.needsIndexing(indexed)) {
                 inScope.put(target.key(), indexed.orElseThrow());
+            } else if (!skipPreviouslyFailed(target, indexed, inScope, failures)) {
+                pending.add(target);
             }
         }
         int reused = inScope.size();
         int indexedCount = 0;
         int types = 0;
         int members = 0;
-        List<String> failures = new ArrayList<>();
         if (!pending.isEmpty()) {
             try (IndexLock.Lease lease = lock.acquire()) {
                 for (Target target : pending) {
@@ -91,6 +96,9 @@ public final class ClasspathIndexer {
                         reused++;
                         continue;
                     }
+                    if (skipPreviouslyFailed(target, indexed, inScope, failures)) {
+                        continue;
+                    }
                     try {
                         StoredArtifact stored = indexOne(target, indexed);
                         inScope.put(target.key(), stored.artifact());
@@ -99,7 +107,9 @@ public final class ClasspathIndexer {
                         members += stored.memberCount();
                     } catch (JdocException e) {
                         log.warn("cannot index {}: {}", target.key().label(), e.getMessage());
-                        failures.add(target.key().label() + ": " + e.getMessage());
+                        IndexFailure failure = new IndexFailure(target.key(), e.getMessage(), false);
+                        failures.add(failure);
+                        remember(target, failure);
                         indexed.ifPresent(stale -> inScope.put(target.key(), stale));
                     }
                 }
@@ -111,6 +121,39 @@ public final class ClasspathIndexer {
                 : List.of();
         return new IndexResult(indexedClasspath,
                 new IndexReport(indexedCount, reused, types, members, missing, failures));
+    }
+
+    /**
+     * Skips a target whose jar, unchanged, already failed to index in an earlier call (unless forced): reports it as
+     * previously failed and keeps an older index of it in scope.
+     *
+     * @return true if the target is skipped
+     */
+    private boolean skipPreviouslyFailed(Target target, Optional<IndexedArtifact> indexed,
+                                         Map<ArtifactKey, IndexedArtifact> inScope, List<IndexFailure> failures) {
+        if (target.forced()) {
+            return false;
+        }
+        Optional<FailedArtifact> failed = store.findFailure(target.key()).filter(failure -> failure.matches(
+                target.file(), target.stamp().mtimeMillis(), target.stamp().size()));
+        if (failed.isEmpty()) {
+            return false;
+        }
+        log.warn("skipping {}: it failed to index before ({}); retried when its file changes or on a forced index",
+                target.key().label(), failed.get().reason());
+        failures.add(new IndexFailure(target.key(), failed.get().reason(), true));
+        indexed.ifPresent(stale -> inScope.put(target.key(), stale));
+        return true;
+    }
+
+    /** Records a failure so that later calls skip the unchanged jar; a store error here only costs a retry. */
+    private void remember(Target target, IndexFailure failure) {
+        try {
+            store.recordFailure(new FailedArtifact(target.key(), target.file(), target.stamp().mtimeMillis(),
+                    target.stamp().size(), failure.reason()));
+        } catch (JdocException e) {
+            log.warn("cannot remember that {} failed to index: {}", target.key().label(), e.getMessage());
+        }
     }
 
     private List<Target> targets(ModuleClasspath classpath, IndexOptions options) {

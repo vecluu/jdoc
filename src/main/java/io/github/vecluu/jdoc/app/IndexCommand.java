@@ -1,6 +1,7 @@
 package io.github.vecluu.jdoc.app;
 
 import io.github.vecluu.jdoc.indexer.ArtifactWithoutSources;
+import io.github.vecluu.jdoc.indexer.IndexFailure;
 import io.github.vecluu.jdoc.indexer.IndexOptions;
 import io.github.vecluu.jdoc.indexer.IndexReport;
 import io.github.vecluu.jdoc.indexer.TypeWithoutSources;
@@ -25,6 +26,7 @@ import java.util.Optional;
  *     com.example.sample.kt.KotlinUtils      decompiled
  * failed to index:
  *   broken 1.0: cannot read jar ...
+ *   corrupt 2.1: zip END header not found  (previously failed; retried when the jar changes or with --force)
  * </pre>
  *
  * Each artifact lists at most {@value #TYPES_PER_ARTIFACT} types, then {@code ... and N more}. Without missing
@@ -36,6 +38,7 @@ public final class IndexCommand {
     public static final int TYPES_PER_ARTIFACT = 10;
 
     private static final String INDENT = "  ";
+    private static final String PREVIOUSLY = "  (previously failed; retried when the jar changes or with --force)";
 
     private final ModuleContext context;
     private final ColumnLayout columns = new ColumnLayout();
@@ -66,10 +69,14 @@ public final class IndexCommand {
             }
             if (!report.failures().isEmpty()) {
                 text.line("failed to index:");
-                report.failures().forEach(failure -> text.line(INDENT + failure.replaceAll("\\s+", " ")));
+                report.failures().forEach(failure -> text.line(INDENT + failure(failure)));
             }
             return CommandResult.found(text.build());
         });
+    }
+
+    private static String failure(IndexFailure failure) {
+        return failure.artifact().label() + ": " + failure.reason() + (failure.previouslyFailed() ? PREVIOUSLY : "");
     }
 
     private static String header(ModuleSession session) {

@@ -1,6 +1,8 @@
 package io.github.vecluu.jdoc.indexer;
 
 import io.github.vecluu.jdoc.index.ArtifactRepository;
+import io.github.vecluu.jdoc.index.FailedArtifact;
+import io.github.vecluu.jdoc.index.FailedArtifactRepository;
 import io.github.vecluu.jdoc.index.IndexDatabase;
 import io.github.vecluu.jdoc.index.MemberRepository;
 import io.github.vecluu.jdoc.index.TypeRepository;
@@ -25,6 +27,7 @@ public final class SqliteIndexStore implements IndexStore {
     private final ArtifactRepository artifacts;
     private final TypeRepository types;
     private final MemberRepository members;
+    private final FailedArtifactRepository failures;
 
     @Override
     public Optional<IndexedArtifact> find(ArtifactKey key) {
@@ -35,6 +38,7 @@ public final class SqliteIndexStore implements IndexStore {
     public StoredArtifact replace(IndexedArtifact artifact, EntryProducer entries) {
         return database.inTransaction(() -> {
             IndexedArtifact saved = artifacts.save(artifact);
+            failures.delete(artifact.key());
             int[] counts = new int[2];
             entries.produce(batch -> {
                 if (batch.isEmpty()) {
@@ -51,6 +55,16 @@ public final class SqliteIndexStore implements IndexStore {
             });
             return new StoredArtifact(saved, counts[0], counts[1]);
         });
+    }
+
+    @Override
+    public Optional<FailedArtifact> findFailure(ArtifactKey key) {
+        return failures.find(key);
+    }
+
+    @Override
+    public void recordFailure(FailedArtifact failure) {
+        failures.save(failure);
     }
 
     @Override

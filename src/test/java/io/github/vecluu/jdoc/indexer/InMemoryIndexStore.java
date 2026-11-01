@@ -1,5 +1,6 @@
 package io.github.vecluu.jdoc.indexer;
 
+import io.github.vecluu.jdoc.index.FailedArtifact;
 import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.IndexedArtifact;
@@ -15,6 +16,7 @@ final class InMemoryIndexStore implements IndexStore {
 
     private final Map<ArtifactKey, IndexedArtifact> artifacts = new HashMap<>();
     private final Map<Long, List<TypeEntry>> entries = new HashMap<>();
+    private final Map<ArtifactKey, FailedArtifact> failures = new HashMap<>();
     private long nextId = 1;
     private int replaceCalls;
 
@@ -34,8 +36,19 @@ final class InMemoryIndexStore implements IndexStore {
             entries.remove(previous.id());
         }
         entries.put(saved.id(), List.copyOf(produced));
+        failures.remove(saved.key());
         return new StoredArtifact(saved, produced.size(),
                 produced.stream().mapToInt(entry -> entry.members().size()).sum());
+    }
+
+    @Override
+    public Optional<FailedArtifact> findFailure(ArtifactKey key) {
+        return Optional.ofNullable(failures.get(key));
+    }
+
+    @Override
+    public void recordFailure(FailedArtifact failure) {
+        failures.put(failure.key(), failure);
     }
 
     @Override

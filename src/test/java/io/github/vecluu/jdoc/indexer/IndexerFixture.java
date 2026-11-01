@@ -3,6 +3,7 @@ package io.github.vecluu.jdoc.indexer;
 import io.github.vecluu.jdoc.bytecode.ZipBinaryJarScanner;
 import io.github.vecluu.jdoc.index.IndexDatabase;
 import io.github.vecluu.jdoc.index.JdbcArtifactRepository;
+import io.github.vecluu.jdoc.index.JdbcFailedArtifactRepository;
 import io.github.vecluu.jdoc.index.JdbcMemberRepository;
 import io.github.vecluu.jdoc.index.JdbcTypeRepository;
 import io.github.vecluu.jdoc.javadoc.JavadocPageParser;
@@ -22,6 +23,7 @@ final class IndexerFixture implements AutoCloseable {
     final JdbcTypeRepository types;
     final JdbcMemberRepository members;
     final JdbcArtifactRepository artifacts;
+    final JdbcFailedArtifactRepository failures;
     final SqliteIndexStore store;
 
     IndexerFixture(Path databaseFile) {
@@ -29,7 +31,8 @@ final class IndexerFixture implements AutoCloseable {
         types = new JdbcTypeRepository(database);
         members = new JdbcMemberRepository(database);
         artifacts = new JdbcArtifactRepository(database);
-        store = new SqliteIndexStore(database, artifacts, types, members);
+        failures = new JdbcFailedArtifactRepository(database);
+        store = new SqliteIndexStore(database, artifacts, types, members, failures);
     }
 
     JarArtifactIndexer artifactIndexer() {

@@ -27,6 +27,7 @@ import java.nio.file.attribute.FileTime;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -77,10 +78,23 @@ class ClasspathIndexerIT {
     /** One process-like indexer with its own database connection. */
     private final class Session implements AutoCloseable {
         final IndexerFixture fixture = new IndexerFixture(paths.indexDb());
-        final ClasspathIndexer indexer = new ClasspathIndexer(fixture.store, fixture.artifactIndexer(),
+        final List<Gav> attempts = new ArrayList<>();
+        int locks;
+        final ClasspathIndexer indexer = new ClasspathIndexer(fixture.store, countingArtifactIndexer(),
                 new DefaultJdkIndexer(fixture.store, JavaSourceParser::new, new ClassFileReader(),
                         new JdkPackageFilter(), 2, Clock.systemUTC()),
-                jdk, lock, new NioFileStatter(), new DecompiledDirectoryEvictor(paths));
+                jdk, () -> {
+                    locks++;
+                    return lock.acquire();
+                }, new NioFileStatter(), new DecompiledDirectoryEvictor(paths));
+
+        private ArtifactIndexer countingArtifactIndexer() {
+            ArtifactIndexer real = fixture.artifactIndexer();
+            return (gav, jar, stamp) -> {
+                attempts.add(gav);
+                return real.index(gav, jar, stamp);
+            };
+        }
 
         IndexResult index(IndexOptions options) {
             return indexer.index(classpath, options);
@@ -213,9 +227,64 @@ class ClasspathIndexerIT {
         try (Session session = new Session()) {
             IndexResult result = session.index(IndexOptions.lookup());
 
-            assertThat(result.report().failures()).singleElement().asString().startsWith("util 2.0-SNAPSHOT");
+            assertThat(result.report().failures()).singleElement()
+                    .satisfies(failure -> assertThat(failure.artifact()).isEqualTo(util.artifactKey()));
             assertThat(result.classpath().artifacts().values()).containsExactly(sample.artifactKey(),
                     ArtifactKey.jdk(25));
+        }
+    }
+
+    @Test
+    void truncatedJarFailsOnceAndIsRetriedOnlyAfterItChanges() throws IOException {
+        byte[] bytes = Files.readAllBytes(util.jar());
+        Files.write(util.jar(), Arrays.copyOf(bytes, bytes.length / 2));
+        try (Session session = new Session()) {
+            IndexResult first = session.index(IndexOptions.lookup());
+            assertThat(first.report().failures()).singleElement().satisfies(failure -> {
+                assertThat(failure.artifact()).isEqualTo(util.artifactKey());
+                assertThat(failure.previouslyFailed()).isFalse();
+                assertThat(failure.reason()).doesNotContain("\n").isNotBlank();
+            });
+            assertThat(session.attempts).containsExactly(sample.gav(), UTIL);
+            assertThat(session.locks).isEqualTo(1);
+        }
+
+        try (Session session = new Session()) {
+            IndexResult second = session.index(IndexOptions.lookup());
+
+            assertThat(session.attempts).isEmpty();
+            assertThat(session.locks).isZero();
+            assertThat(second.report().failures()).singleElement()
+                    .satisfies(failure -> assertThat(failure.previouslyFailed()).isTrue());
+            assertThat(second.classpath().artifacts().values()).containsExactly(sample.artifactKey(),
+                    ArtifactKey.jdk(25));
+        }
+
+        Files.write(util.jar(), bytes);
+        Files.setLastModifiedTime(util.jar(), FileTime.fromMillis(Files.getLastModifiedTime(util.jar())
+                .toMillis() + 5_000));
+        try (Session session = new Session()) {
+            IndexResult third = session.index(IndexOptions.lookup());
+
+            assertThat(session.attempts).containsExactly(UTIL);
+            assertThat(third.report().failures()).isEmpty();
+            assertThat(third.classpath().artifacts().values()).contains(util.artifactKey());
+            assertThat(session.fixture.failures.find(util.artifactKey())).isEmpty();
+        }
+    }
+
+    @Test
+    void forcedIndexRetriesAnUnchangedFailedJar() throws IOException {
+        Files.writeString(util.jar(), "not a zip");
+        try (Session session = new Session()) {
+            session.index(IndexOptions.lookup());
+            session.attempts.clear();
+
+            IndexResult forced = session.index(IndexOptions.indexCommand(true));
+
+            assertThat(session.attempts).containsExactly(sample.gav(), UTIL);
+            assertThat(forced.report().failures()).singleElement()
+                    .satisfies(failure -> assertThat(failure.previouslyFailed()).isFalse());
         }
     }
 }
