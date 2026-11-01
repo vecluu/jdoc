@@ -30,8 +30,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  * The lookup hot path answers from SQLite alone: each command runs in a child JVM on the fat jar with
  * {@code -Xlog:class+load}, against an index built once (real JDK {@code src.zip} plus the mixed sample library with
  * sources, javadoc-only and decompiled types), and must not load javac ({@code com.sun.source},
- * {@code com.sun.tools.javac}), jsoup, ASM or Vineflower. {@code jdoc source} is the control: it parses source and
- * therefore does load javac.
+ * {@code com.sun.tools.javac}), jsoup, ASM or Vineflower. {@code jdoc source} of a member with source text cuts it by
+ * the stored offsets, so it loads none of them either. The control is {@code jdoc source} of a decompiled type: it
+ * decompiles and parses, and therefore does load javac.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class HotPathClassLoadingIT {
@@ -79,7 +80,9 @@ class HotPathClassLoadingIT {
                 Arguments.of("member", "orElseThrow"),
                 Arguments.of("impls", SampleLibrary.SHAPE.displayName()),
                 Arguments.of("package", "java.util"),
-                Arguments.of("package", SampleLibrary.PACKAGE));
+                Arguments.of("package", SampleLibrary.PACKAGE),
+                Arguments.of("source", "java.util.Optional#orElseThrow"),
+                Arguments.of("source", SampleLibrary.CIRCLE.displayName() + "#area"));
     }
 
     @ParameterizedTest(name = "{0} {1}")
@@ -95,11 +98,11 @@ class HotPathClassLoadingIT {
     }
 
     @Test
-    void sourceStillParsesWithJavac() throws Exception {
-        Run run = run("source", "source", "java.util.Optional#orElseThrow");
+    void sourceOfDecompiledTypeStillParsesWithJavac() throws Exception {
+        Run run = run("source-decompiled", "source", SampleLibrary.KOTLIN_UTILS.displayName() + "#twice");
 
         assertThat(run.code()).as(run.err()).isZero();
-        assertThat(run.out()).contains("public T orElseThrow()");
+        assertThat(run.out()).contains("twice");
         assertThat(run.loadedClasses()).anyMatch(name -> name.startsWith("com.sun.source."));
     }
 

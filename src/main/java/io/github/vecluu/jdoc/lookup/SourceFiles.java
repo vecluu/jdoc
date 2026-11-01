@@ -18,6 +18,7 @@ public final class SourceFiles implements AutoCloseable {
 
     private final JarEntryReader reader;
     private final Supplier<JavaSourceParser> parserFactory;
+    private final Map<String, Optional<String>> texts = new HashMap<>();
     private final Map<String, Optional<ParsedText>> parsed = new HashMap<>();
     private JavaSourceParser parser;
 
@@ -52,10 +53,20 @@ public final class SourceFiles implements AutoCloseable {
         if (cached != null) {
             return cached;
         }
-        Optional<ParsedText> result = reader.readText(jar, entryPath)
-                .map(text -> parseText(entryPath, text, docSource));
+        Optional<ParsedText> result = text(jar, entryPath).map(text -> parseText(entryPath, text, docSource));
         parsed.put(key, result);
         return result;
+    }
+
+    /**
+     * Reads a source entry without parsing it.
+     *
+     * @param jar       sources jar or {@code src.zip}
+     * @param entryPath the {@code .java} entry
+     * @return the text, or empty if the entry does not exist
+     */
+    public Optional<String> text(Path jar, String entryPath) {
+        return texts.computeIfAbsent(jar + "!" + entryPath, key -> reader.readText(jar, entryPath));
     }
 
     /** Parses text that does not come from a jar entry (decompiled source); not cached. */

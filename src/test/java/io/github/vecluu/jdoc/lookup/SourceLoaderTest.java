@@ -10,7 +10,9 @@ import io.github.vecluu.jdoc.indexer.TypeEntry;
 import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.Gav;
+import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.RenderedDoc;
+import io.github.vecluu.jdoc.model.SourceRange;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -132,6 +134,46 @@ class SourceLoaderTest {
         assertThat(unavailable("d.Lib#missing").reason()).contains("not found in decompiled source");
         assertThat(unavailable("d.Broken#boom").reason()).contains("Cannot decompile d.Broken");
         assertThat(unavailable("java.util.NoSrc#x").reason()).contains("src.zip");
+    }
+
+    @Test
+    void sourceTextChangedSinceIndexingIsParsedAndTheMemberStillFound() {
+        JarEntryReader real = new ZipJarEntryReader();
+        JarEntryReader shifted = (jar, entry) -> real.readText(jar, entry)
+                .map(text -> entry.endsWith("a/Impl.java") ? text.replace("package a;", "package a;\n\n// moved\n")
+                        : text);
+        try (LookupServices changed = index.services((gav, jar, type) -> {
+            throw new AssertionError("unexpected decompile");
+        }, shifted)) {
+            MemberLookup.Found found = (MemberLookup.Found) changed.memberLookup().lookup("a.Impl#own", index.scope());
+            MemberSource source = changed.sources().source(found.members().getFirst(), index.scope());
+
+            assertThat(source).isInstanceOfSatisfying(MemberSource.Available.class, available ->
+                    assertThat(available.code()).isEqualTo(available("a.Impl#own").code()));
+        }
+    }
+
+    @Test
+    void storedRangeMatchesOnlyWhileItStillPointsAtTheMember() {
+        String text = "class A {\n    /** Doc. */\n    void own() {}\n    void owner() {}\n}\n";
+        int start = text.indexOf("/**");
+        int end = text.indexOf("{}") + 2;
+        MemberDescriptor own = method("A", "own").toBuilder()
+                .range(Optional.of(new SourceRange(start, end)))
+                .docRange(Optional.of(new SourceRange(start, text.indexOf("*/") + 2)))
+                .build();
+
+        assertThat(SourceLoader.storedRangeMatches(text, own)).isTrue();
+        assertThat(SourceLoader.storedRangeMatches("// shifted\n" + text, own)).isFalse();
+        assertThat(SourceLoader.storedRangeMatches(text.replace("own()", "own2()"), own)).isFalse();
+        assertThat(SourceLoader.storedRangeMatches(text.substring(0, end - 1), own)).isFalse();
+        assertThat(SourceLoader.storedRangeMatches(text, own.toBuilder().docRange(Optional.empty()).build()))
+                .isTrue();
+        assertThat(SourceLoader.storedRangeMatches(text, own.toBuilder().range(Optional.empty()).build())).isFalse();
+        int ownerStart = text.indexOf("void owner");
+        MemberDescriptor wrongName = own.toBuilder().docRange(Optional.empty())
+                .range(Optional.of(new SourceRange(ownerStart, text.indexOf("{}", ownerStart) + 2))).build();
+        assertThat(SourceLoader.storedRangeMatches(text, wrongName)).isFalse();
     }
 
     private MemberSource source(String reference) {

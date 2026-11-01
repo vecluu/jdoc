@@ -85,8 +85,12 @@ final class LookupIndex implements AutoCloseable {
     }
 
     LookupServices services(DecompiledSourceProvider decompiled) {
-        return LookupServices.create(artifacts, types, supertypes, members, docs, new ZipJarEntryReader(),
-                decompiled);
+        return services(decompiled, new ZipJarEntryReader());
+    }
+
+    /** Services reading source entries through {@code jarEntries} (e.g. to simulate a changed sources jar). */
+    LookupServices services(DecompiledSourceProvider decompiled, JarEntryReader jarEntries) {
+        return LookupServices.create(artifacts, types, supertypes, members, docs, jarEntries, decompiled);
     }
 
     LookupServices services() {

@@ -7,6 +7,7 @@ import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.IndexedArtifact;
 import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.RenderedDoc;
+import io.github.vecluu.jdoc.model.SourceRange;
 import io.github.vecluu.jdoc.model.TypeName;
 import io.github.vecluu.jdoc.source.MemberSourceSlicer;
 import io.github.vecluu.jdoc.source.ParsedMember;
@@ -21,13 +22,15 @@ import lombok.extern.slf4j.Slf4j;
  * Source text of a member for {@code jdoc source}: the only place implementation is shown.
  *
  * <ul>
- *   <li>{@link DocSource#SOURCES} / {@link DocSource#JDK}: the member is cut from the source entry by its offsets
- *       (doc comment through end of body).</li>
+ *   <li>{@link DocSource#SOURCES} / {@link DocSource#JDK}: the member is cut from the source entry by its stored
+ *       offsets (doc comment through end of body) when they still point at it (the declaration in range names the
+ *       member); otherwise, or for members without offsets, the entry is parsed and the member found in it.</li>
  *   <li>{@link DocSource#JAVADOC} / {@link DocSource#DECOMPILED}: the top-level type is decompiled through the
  *       decompiled-source cache, parsed, and the member is cut from it (marked decompiled). For javadoc-jar types the
  *       doc rendered from the javadoc page at index time is returned alongside.</li>
  * </ul>
- * This is the only lookup path that parses Java source (javac) or decompiles (Vineflower).
+ * This is the only lookup path that parses Java source (javac) or decompiles (Vineflower); an unchanged source
+ * entry is not parsed.
  * Compiler-generated members (default constructors, record accessors, enum {@code values}) have no source.
  */
 @Slf4j
@@ -64,6 +67,12 @@ public final class SourceLoader {
     private MemberSource fromSourceText(MemberMatch member, IndexedArtifact artifact, DocSource docSource) {
         LocatedType type = member.declaringType();
         Optional<Path> container = sourceContainer(artifact, docSource);
+        Optional<String> stored = container.flatMap(jar -> sources.text(jar, type.descriptor().entryPath()))
+                .filter(text -> storedRangeMatches(text, member.descriptor()))
+                .flatMap(text -> slicer.member(text, member.descriptor()));
+        if (stored.isPresent()) {
+            return new MemberSource.Available(member, stored.get(), Optional.empty(), false);
+        }
         Optional<ParsedText> parsed = container.flatMap(jar ->
                 sources.parse(jar, type.descriptor().entryPath(), docSource));
         if (parsed.isEmpty()) {
@@ -114,6 +123,41 @@ public final class SourceLoader {
                 .<MemberSource>map(code -> new MemberSource.Available(member, code, doc, decompiledText))
                 .orElseGet(() -> new MemberSource.Unavailable(member, "source range of " + member.reference()
                         + " is outside the file"));
+    }
+
+    /**
+     * True if the member's stored offsets still point at it in {@code text}: the range lies inside the text, a stored
+     * doc range starts with {@code /**}, and the declaration after it names the member as a whole identifier. A
+     * source entry that changed since indexing fails this check (and is parsed) unless the member kept its exact
+     * position.
+     */
+    static boolean storedRangeMatches(String text, MemberDescriptor member) {
+        if (member.range().isEmpty()) {
+            return false;
+        }
+        SourceRange range = member.range().get();
+        if (range.start() < 0 || range.end() > text.length() || range.start() >= range.end()) {
+            return false;
+        }
+        int declaration = range.start();
+        if (member.docRange().isPresent()) {
+            SourceRange doc = member.docRange().get();
+            if (doc.start() < range.start() || doc.end() > range.end() || !text.startsWith("/**", doc.start())) {
+                return false;
+            }
+            declaration = doc.end();
+        }
+        String name = member.name();
+        for (int at = text.indexOf(name, declaration); at >= 0 && at + name.length() <= range.end();
+             at = text.indexOf(name, at + 1)) {
+            boolean startsWord = at == 0 || !Character.isJavaIdentifierPart(text.charAt(at - 1));
+            int after = at + name.length();
+            boolean endsWord = after >= text.length() || !Character.isJavaIdentifierPart(text.charAt(after));
+            if (startsWord && endsWord) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The jar holding source text for a doc source: the sources jar, or {@code src.zip} for the JDK. */
