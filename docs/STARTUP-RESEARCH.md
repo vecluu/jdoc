@@ -327,6 +327,55 @@ Savings are for the warm `method` call against today's 591 ms wrapper.
 3. **Only if still too slow:** the daemon (option 5) with a Java client from an AOT cache (~44 ms) and an idle
    timeout, falling back to in-process execution on any connection problem.
 
+## Measured (T16, after picocli removal and docs in the index)
+
+Harness: `scripts/bench-startup.sh <jar>` (temp module with a fake `mvn`, temp `JDOC_CACHE`/`JDOC_M2_REPO`, one
+`jdoc index` to warm, then per command 2 unmeasured and 11 measured runs, median). `BENCH_JVM_FLAGS` replaces the JVM
+flags (T17: add `-XX:AOTCache=...`), `BENCH_RUNS`, `BENCH_WARMUP`, `BENCH_COMMANDS`, `BENCH_JAVA`, `BENCH_KEEP`.
+Same machine and JDK as above; no AOT cache. "T17 flags" = `-XX:TieredStopAtLevel=1 -XX:+UseSerialGC
+-XX:-UsePerfData` + pre-extracted sqlite library (`-Dorg.sqlite.lib.path/.name`), i.e. the planned wrapper without
+the cache.
+
+| Command | before T16, C1 only | after T16, C1 only | before, T17 flags | after, T17 flags |
+| --- | --- | --- | --- | --- |
+| `--version` | 40 ms | 40 ms | 35 ms | 37 ms |
+| `class java.util.Optional` | 310 | 233 | 248 | 167 |
+| `method java.util.Optional#orElseThrow` | 278 | 216 | 225 | 151 |
+| `find HashMap` | 389 | 242 | 326 | 185 |
+| `member orElseThrow` | 280 | 212 | 219 | 148 |
+| `source java.util.Optional#orElseThrow` | 515 | 221 | 447 | 159 |
+
+`member orElseThrow` from a module of a 30-module reactor, T17 flags: 255 → 150 ms (every call parsed all 31 POMs
+before). Classes loaded by `method`: 2,362 → 2,162 (not from CDS: 1,029 → 829; JAXP 140 → 1); by `source`:
+3,924 → 2,166 (javac 1,079 → 0).
+
+What changed, each measured on its own (median `method`, T17 flags unless noted):
+
+| Change | Effect |
+| --- | --- |
+| `index.db` opened on a background thread while the module is resolved (`IndexDatabase.openInBackground`) | 280 → 225 ms (C1 only), 220 → 180 ms |
+| POM analysis snapshot: POM key and reactor reused while every probed path keeps its stamp; XML parser created lazily | 177 → 159 ms (resolution 28 → 8 ms); larger with a reactor |
+| `IndexDatabase` logger looked up lazily and the open started first in the composition root (slf4j init no longer delays the open thread) | 163 → 150 ms, 227 → 212 ms (C1 only) |
+| `find`: type names pre-filtered in SQL by the pattern's subsequence (was: every type name in scope mapped in Java); `findByNames` uses the `members_name` index (`COLLATE NOCASE IN` + exact `IN`; was a scan of every member in scope, 12 ms → 0.3 ms) | `find HashMap` 319 → 242 ms (C1 only) |
+| `class`: nested types by a binary-name range (`findNested`) instead of reading the whole package (`java.util`: 432 rows, 15 ms) | `class java.util.Optional` 240 → 227 ms (C1 only) |
+| `source`: member cut by its stored offsets when they still point at it (no javac); parse only as fallback | 438 → 222 ms (C1 only) |
+
+Tried and dropped: initialising slf4j on its own thread as soon as a command is known (−5 ms, within noise of the
+AOT case); `-Dslf4j.provider=...` (−3 ms, prints an info line).
+
+Where a warm `method` call still spends its time (T17 flags, ~150 ms; `-Xlog:class+load` timestamps + JFR):
+
+- JVM boot to `Main` ~23 ms; CLI parsing and wiring ~50 ms of mostly cold class loading, including slf4j-simple
+  initialisation (~12 ms, triggered by the first `@Slf4j` class) and the first record `ObjectMethods` /
+  method-handle bootstraps (~9 ms).
+- Background thread (overlapped): `new SQLiteConfig()` ~25 ms (sqlite-jdbc's `FastDateFormat` loads CLDR locale
+  data), native library ~20 ms (~95 ms when it is extracted to `/tmp` per call, i.e. without the wrapper's
+  `-Dorg.sqlite.lib.path`: then this thread is the critical path).
+- Resolution with a snapshot hit ~8 ms; indexer freshness check ~10 ms (first SQL statements, JDBC classes).
+- Lookup and rendering ~40 ms, almost all first-use class loading; SQL itself is a few ms.
+
+Most of the remainder is cold code, which is what the AOT cache (T17) removes.
+
 ## Experiments (reproducible)
 
 Scratch dir: `/tmp/claude-1000/-home-rave-IdeaProjects-jdoc/fc95a69f-0953-495a-80f4-29f342833d65/scratchpad/startup/`

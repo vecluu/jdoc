@@ -86,7 +86,8 @@ plus system properties, so tests can construct it freely. It exposes:
 | working directory | `user.dir` | — |
 
 `CachePaths` — derives every path under the cache dir: `index.db`, `lock`, `modules/<key>/deps.txt`,
-`modules/<key>/meta.json`, `decompiled/<groupPath>/<artifactId>/<version>/`. It creates directories on demand.
+`modules/<key>/meta.json`, `module-snapshots/<hash>.txt` (T16: POM analysis per module directory),
+`decompiled/<groupPath>/<artifactId>/<version>/`. It creates directories on demand.
 
 ## Domain model (`model`, T01)
 
@@ -158,13 +159,18 @@ Every read query is scoped to a **set of artifact ids** (the current module's cl
 
 ## Runtime flow (one call)
 
-1. `cli` parses arguments; composition root builds services from `JdocEnvironment`.
-2. `module.ClasspathResolver` → `ModuleClasspath` (cache hit: read `deps.txt`; miss: run Maven).
+1. `cli` parses arguments; composition root builds services from `JdocEnvironment` and starts opening `index.db`
+   on a background thread (sqlite-jdbc's native library and connection set-up overlap steps 1 and 2; the first query
+   waits for it).
+2. `module.ClasspathResolver` → `ModuleClasspath` (cache hit: read `deps.txt`; miss: run Maven). The POM key and the
+   reactor come from a per-module snapshot while every file the POM analysis touched keeps its stamp (size, mtime,
+   ctime, inode; T16), so an unchanged project is not parsed (no JAXP, no SHA-256).
 3. `indexer.ClasspathIndexer` ensures the JDK and every jar on the classpath is indexed and current
    (stat mtime/size; re-index only changed jars; under the file lock).
 4. `app` service for the command uses `lookup` services scoped to those artifact ids. Every command except `source`
    answers from SQLite alone (docs included): no javac, jsoup, ASM or Vineflower is loaded. `source` reads the jar entry
-   and parses it (javac) or decompiles (Vineflower). The composition root creates the indexing components (ASM scanner,
+   and cuts the member by its stored offsets when they still point at it; only otherwise (changed entry, members without
+   offsets) does it parse (javac), and types without sources are decompiled (Vineflower). The composition root creates the indexing components (ASM scanner,
    javadoc-page parser, javac parsers) only when step 3 actually has to index something.
 5. Result is a `CommandResult` (exit code + lines); `cli` paginates with `text` and prints.
 
