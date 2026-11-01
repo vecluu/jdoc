@@ -30,3 +30,6 @@ drafts there are the starting point; adapt them to what was actually built (T14 
 - Do not push. The orchestrator asks the user before any push that is not a pipeline test.
 
 Environment note: Maven 3.10.0 is at `/opt/maven/apache-maven-3.10.0/bin/mvn`. Agent shells may not have it on PATH; prepend that directory to PATH in your commands (or set `JDOC_MVN`). Do not hardcode the path in code or committed scripts.
+
+License files (from T21): the tarball root must contain `LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES`
+(see `docs/LICENSE-COMPLIANCE.md`); the install check should assert they are present.
