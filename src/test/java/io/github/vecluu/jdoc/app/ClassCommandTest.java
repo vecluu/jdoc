@@ -67,7 +67,7 @@ class ClassCommandTest {
         assertThat(lines(result)).anySatisfy(line -> assertThat(line).startsWith("class Circle.Builder")
                 .endsWith("Builds circles."));
         assertThat(lines(result)).contains("inherited from Base: compareTo", "inherited from Object: equals, "
-                + "getClass, hashCode");
+                + "getClass, hashCode, finalize");
     }
 
     @Test

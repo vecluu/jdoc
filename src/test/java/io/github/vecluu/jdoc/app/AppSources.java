@@ -45,6 +45,14 @@ final class AppSources {
                      * @return a hash code value for this object
                      */
                     public native int hashCode();
+
+                    /**
+                     * Called by the garbage collector.
+                     *
+                     * @throws Throwable the exception raised by this method
+                     */
+                    protected void finalize() throws Throwable {
+                    }
                 }
                 """);
         sources.put("java/util/function/Supplier.java", """

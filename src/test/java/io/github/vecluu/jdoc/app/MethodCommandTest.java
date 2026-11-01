@@ -84,6 +84,26 @@ class MethodCommandTest {
     }
 
     @Test
+    void protectedMemberInheritedByAFinalClassIsNotFoundWithAHint() {
+        CommandResult result = run("Optional#finalize");
+
+        assertThat(result.exitCode()).isEqualTo(ExitCode.NOT_FOUND);
+        assertThat(lines(result)).containsExactly(
+                "java.util.Optional<T>  public final class  (jdk 25)",
+                "no member Optional#finalize in java.util.Optional",
+                "java.lang.Object#finalize() is protected and java.util.Optional cannot be subclassed");
+    }
+
+    @Test
+    void protectedMemberInheritedByANonFinalClassIsFound() {
+        CommandResult result = run("com.acme.Circle#finalize");
+
+        assertThat(result.exitCode()).isEqualTo(ExitCode.FOUND);
+        assertThat(lines(result)).anySatisfy(line -> assertThat(line).startsWith("protected void finalize()")
+                .contains("[inherited from java.lang.Object]"));
+    }
+
+    @Test
     void ambiguousTypePartListsCandidates() {
         CommandResult result = run("Duration#toString");
 

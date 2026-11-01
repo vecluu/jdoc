@@ -66,6 +66,8 @@ final class LookupOutcomes {
     private static CommandResult memberNotFound(MemberLookup.MemberNotFound notFound, LookupScope scope) {
         TextResult.Builder text = TextResult.builder(Headers.type(notFound.type(), scope))
                 .line("no member " + notFound.reference().input() + " in " + notFound.type().name().displayName());
+        notFound.protectedInherited().forEach(match -> text.line(match.reference() + " is protected and "
+                + notFound.type().name().displayName() + " cannot be subclassed"));
         if (!notFound.suggestions().isEmpty()) {
             text.line("did you mean:");
             notFound.suggestions().forEach(suggestion -> text.line(INDENT + suggestion));
