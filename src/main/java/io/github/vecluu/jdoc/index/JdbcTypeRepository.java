@@ -43,31 +43,45 @@ public final class JdbcTypeRepository implements TypeRepository {
         });
     }
 
+    /**
+     * Inserts with explicit ids ({@code max(id) + 1} onwards, the same ids SQLite would pick) in JDBC batches: one
+     * {@code INSERT ... RETURNING id} query per row was the slowest part of indexing the JDK. Safe because the caller's
+     * transaction holds the write lock ({@code BEGIN IMMEDIATE}).
+     */
     private List<IndexedType> insertTypes(long artifactId, List<TypeDescriptor> types) {
+        long firstId = sql.queryFirst("SELECT coalesce(max(id), 0) + 1 FROM types", s -> { }, row -> row.getLong(1))
+                .orElse(1L);
         return sql.withStatement("""
-                INSERT INTO types (artifact_id, binary_name, simple_name, display_name, package, kind, visibility,
+                INSERT INTO types (id, artifact_id, binary_name, simple_name, display_name, package, kind, visibility,
                                    modifiers, type_params, deprecated, first_sentence, doc_source, entry_path,
                                    decl_start, decl_end)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""", s -> {
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", s -> {
             List<IndexedType> stored = new ArrayList<>(types.size());
             for (TypeDescriptor type : types) {
+                long id = firstId + stored.size();
                 TypeName name = type.name();
-                s.setLong(1, artifactId);
-                s.setString(2, name.binaryName());
-                s.setString(3, name.simpleName());
-                s.setString(4, name.displayName());
-                s.setString(5, name.packageName());
-                s.setString(6, type.kind().name());
-                s.setString(7, type.visibility().name());
-                s.setString(8, type.modifiers());
-                s.setString(9, type.typeParameters());
-                s.setInt(10, Rows.flag(type.deprecated()));
-                s.setString(11, type.firstSentence());
-                s.setString(12, type.docSource().name());
-                s.setString(13, type.entryPath());
-                Rows.setRange(s, 14, type.declarationRange());
-                stored.add(new IndexedType(Rows.returnedId(s), artifactId, type));
+                s.setLong(1, id);
+                s.setLong(2, artifactId);
+                s.setString(3, name.binaryName());
+                s.setString(4, name.simpleName());
+                s.setString(5, name.displayName());
+                s.setString(6, name.packageName());
+                s.setString(7, type.kind().name());
+                s.setString(8, type.visibility().name());
+                s.setString(9, type.modifiers());
+                s.setString(10, type.typeParameters());
+                s.setInt(11, Rows.flag(type.deprecated()));
+                s.setString(12, type.firstSentence());
+                s.setString(13, type.docSource().name());
+                s.setString(14, type.entryPath());
+                Rows.setRange(s, 15, type.declarationRange());
+                s.addBatch();
+                stored.add(new IndexedType(id, artifactId, type));
+                if (stored.size() % JdbcMemberRepository.BATCH_SIZE == 0) {
+                    s.executeBatch();
+                }
             }
+            s.executeBatch();
             return stored;
         });
     }

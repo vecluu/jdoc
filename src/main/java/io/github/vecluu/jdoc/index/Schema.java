@@ -5,8 +5,11 @@ import java.util.List;
 /** DDL of the index database. Bump {@link #VERSION} on any change: older files are dropped and rebuilt. */
 final class Schema {
 
-    /** Value stored in {@code PRAGMA user_version}. 2: {@code failed_artifacts}. */
-    static final int VERSION = 2;
+    /**
+     * Value stored in {@code PRAGMA user_version}. 2: {@code failed_artifacts}. 3: rendered docs
+     * ({@code type_docs}, {@code member_docs}, {@code package_docs}).
+     */
+    static final int VERSION = 3;
 
     static final List<String> STATEMENTS = List.of(
             """
@@ -80,7 +83,25 @@ final class Schema {
                 doc_end        INTEGER
             )""",
             "CREATE INDEX IF NOT EXISTS members_type ON members (type_id, position)",
-            "CREATE INDEX IF NOT EXISTS members_name ON members (name COLLATE NOCASE)");
+            "CREATE INDEX IF NOT EXISTS members_name ON members (name COLLATE NOCASE)",
+            // Rendered docs (DocCodec blobs) have their own tables so that scans of types and members stay small.
+            """
+            CREATE TABLE IF NOT EXISTS type_docs (
+                type_id INTEGER PRIMARY KEY REFERENCES types (id) ON DELETE CASCADE,
+                doc     BLOB    NOT NULL
+            )""",
+            """
+            CREATE TABLE IF NOT EXISTS member_docs (
+                member_id INTEGER PRIMARY KEY REFERENCES members (id) ON DELETE CASCADE,
+                doc       BLOB    NOT NULL
+            )""",
+            """
+            CREATE TABLE IF NOT EXISTS package_docs (
+                artifact_id INTEGER NOT NULL REFERENCES artifacts (id) ON DELETE CASCADE,
+                package     TEXT    NOT NULL,
+                doc         BLOB    NOT NULL,
+                PRIMARY KEY (artifact_id, package)
+            )""");
 
     private Schema() {
     }
