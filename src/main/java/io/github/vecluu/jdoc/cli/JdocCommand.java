@@ -2,103 +2,110 @@ package io.github.vecluu.jdoc.cli;
 
 import io.github.vecluu.jdoc.app.Application;
 import io.github.vecluu.jdoc.app.CommandResult;
-import java.util.concurrent.Callable;
-import java.util.function.Function;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Mixin;
-import picocli.CommandLine.Model.CommandSpec;
-import picocli.CommandLine.Option;
-import picocli.CommandLine.ParameterException;
-import picocli.CommandLine.Parameters;
-import picocli.CommandLine.ScopeType;
-import picocli.CommandLine.Spec;
+import java.util.List;
+import java.util.Optional;
 
 /**
- * The picocli model of {@code jdoc} and its eight subcommands. Each subcommand only hands its arguments to the
- * {@link Application} through the {@link CommandRunner} and returns the exit code.
+ * The eight jdoc commands: name, argument, options and help lines, and the {@link Application} call each one makes.
+ * Plain data on purpose: building the command table loads no framework and runs no reflection.
  */
-@Command(name = "jdoc",
-        scope = ScopeType.INHERIT,
-        mixinStandardHelpOptions = true,
-        versionProvider = ManifestVersionProvider.class,
-        usageHelpAutoWidth = true,
-        sortOptions = false,
-        description = {
-                "Signatures and Javadoc of the Java libraries on the current Maven module's classpath and the JDK.",
-                "Exit codes: 0 found, 1 not found, 2 ambiguous, 3 error."},
-        commandListHeading = "%nCommands:%n")
-final class JdocCommand implements Callable<Integer> {
+enum JdocCommand {
 
-    @Spec
-    private CommandSpec spec;
+    FIND("find", "<pattern>", "Case-insensitive substring or camel humps (HSR matches HttpServletRequest).",
+            "Types and members whose names match: substring or camel humps (HSR)."),
+    CLASS("class", "<type>", "FQCN or simple name; nested types as Outer.Inner or Outer$Inner.",
+            "Kind, supertypes, first doc paragraph, members with first sentences, inherited member names."),
+    METHOD("method", "<type>#<name>[(<params>)]",
+            "e.g. java.util.Optional#orElseThrow or 'Map#of(Object,Object)' (simple parameter type names).",
+            "Full Javadoc of a method, or of every overload when (<params>) is omitted."),
+    SOURCE("source", "<type>#<name>[(<params>)]", "The member, written as for method.",
+            "The member's implementation with its Javadoc."),
+    IMPLS("impls", "<type>", "FQCN or simple name.", "Known subtypes and implementations on the classpath."),
+    MEMBER("member", "<name>", "Member name.",
+            "Every type declaring a member with this name, as Type#name(params)."),
+    PACKAGE("package", "<pkg>", "Package name, e.g. java.util.", "The package's doc, then its types with first "
+            + "sentences."),
+    INDEX("index", null, null, "Resolve and index the current module; report types without sources.");
 
-    private final CommandRunner runner;
+    private static final List<OptionDefinition> SHARED = List.of(OptionDefinition.FROM, OptionDefinition.PAGE);
+    private static final List<OptionDefinition> WITH_FORCE =
+            List.of(OptionDefinition.FORCE, OptionDefinition.FROM, OptionDefinition.PAGE);
 
-    JdocCommand(CommandRunner runner) {
-        this.runner = runner;
+    private final String commandName;
+    private final String parameter;
+    private final String parameterDescription;
+    private final String description;
+
+    JdocCommand(String commandName, String parameter, String parameterDescription, String description) {
+        this.commandName = commandName;
+        this.parameter = parameter;
+        this.parameterDescription = parameterDescription;
+        this.description = description;
     }
 
-    /** {@code jdoc} without a subcommand is a usage error. */
-    @Override
-    public Integer call() {
-        throw new ParameterException(spec.commandLine(), "Missing command, e.g. jdoc class <type> (see jdoc --help)");
+    /** The command typed on the command line, e.g. {@code class}. */
+    static Optional<JdocCommand> named(String name) {
+        for (JdocCommand command : values()) {
+            if (command.commandName.equals(name)) {
+                return Optional.of(command);
+            }
+        }
+        return Optional.empty();
     }
 
-    @Command(name = "find", description = "Types and members whose names match: substring or camel humps (HSR).")
-    int find(@Mixin CommonOptions options,
-             @Parameters(paramLabel = "<pattern>", description = "Name pattern.") String pattern) {
-        return run(options, app -> app.find(pattern, options.from()));
+    /** The name typed on the command line. */
+    String commandName() {
+        return commandName;
     }
 
-    @Command(name = "class", description = "Kind, supertypes, first doc paragraph, members with first sentences, "
-            + "inherited member names.")
-    int classView(@Mixin CommonOptions options,
-                  @Parameters(paramLabel = "<type>", description = "FQCN or simple name (Outer.Inner).")
-                  String type) {
-        return run(options, app -> app.classView(type, options.from()));
+    /** The label of the single required argument, e.g. {@code <type>}; empty for {@code index}. */
+    Optional<String> parameter() {
+        return Optional.ofNullable(parameter);
     }
 
-    @Command(name = "method", description = "Full Javadoc of a method, or of every overload without (<params>).")
-    int method(@Mixin CommonOptions options,
-               @Parameters(paramLabel = "<type>#<name>[(<params>)]",
-                       description = "e.g. java.util.Optional#orElseThrow or 'Map#of(Object,Object)'.")
-               String reference) {
-        return run(options, app -> app.method(reference, options.from()));
+    /** The help line of the argument; empty for {@code index}. */
+    Optional<String> parameterDescription() {
+        return Optional.ofNullable(parameterDescription);
     }
 
-    @Command(name = "source", description = "The member's implementation with its Javadoc.")
-    int source(@Mixin CommonOptions options,
-               @Parameters(paramLabel = "<type>#<name>[(<params>)]", description = "The member.")
-               String reference) {
-        return run(options, app -> app.source(reference, options.from()));
+    /** One line describing the command. */
+    String description() {
+        return description;
     }
 
-    @Command(name = "impls", description = "Known subtypes and implementations on the classpath.")
-    int impls(@Mixin CommonOptions options,
-              @Parameters(paramLabel = "<type>", description = "FQCN or simple name.") String type) {
-        return run(options, app -> app.impls(type, options.from()));
+    /** The options the command accepts, in help order. */
+    List<OptionDefinition> options() {
+        return this == INDEX ? WITH_FORCE : SHARED;
     }
 
-    @Command(name = "member", description = "Every type declaring a member with this name, as Type#name(params).")
-    int member(@Mixin CommonOptions options,
-               @Parameters(paramLabel = "<name>", description = "Member name.") String name) {
-        return run(options, app -> app.member(name, options.from()));
+    /** The option with this name ({@code --from}), if the command accepts it. */
+    Optional<OptionDefinition> option(String name) {
+        for (OptionDefinition option : options()) {
+            if (option.name().equals(name)) {
+                return Optional.of(option);
+            }
+        }
+        return Optional.empty();
     }
 
-    @Command(name = "package", description = "The package's doc, then its types with first sentences.")
-    int packageView(@Mixin CommonOptions options,
-                    @Parameters(paramLabel = "<pkg>", description = "Package name.") String packageName) {
-        return run(options, app -> app.packageView(packageName, options.from()));
+    /** The command and its argument as shown in the command list, e.g. {@code class <type>}, {@code index [--force]}. */
+    String synopsis() {
+        return this == INDEX ? commandName + " [" + OptionDefinition.FORCE.name() + "]"
+                : commandName + " " + parameter;
     }
 
-    @Command(name = "index", description = "Resolve and index the current module; report types without sources.")
-    int index(@Mixin CommonOptions options,
-              @Option(names = "--force", description = "Rebuild the module's artifacts from scratch.")
-              boolean force) {
-        return run(options, app -> app.index(force, options.from()));
-    }
-
-    private int run(CommonOptions options, Function<Application, CommandResult> call) {
-        return runner.run(options.page(), call);
+    /** Calls the application for a parsed invocation of this command. */
+    CommandResult call(Application application, Invocation invocation) {
+        String argument = invocation.argument().orElse("");
+        return switch (this) {
+            case FIND -> application.find(argument, invocation.from());
+            case CLASS -> application.classView(argument, invocation.from());
+            case METHOD -> application.method(argument, invocation.from());
+            case SOURCE -> application.source(argument, invocation.from());
+            case IMPLS -> application.impls(argument, invocation.from());
+            case MEMBER -> application.member(argument, invocation.from());
+            case PACKAGE -> application.packageView(argument, invocation.from());
+            case INDEX -> application.index(invocation.force(), invocation.from());
+        };
     }
 }

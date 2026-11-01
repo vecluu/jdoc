@@ -190,4 +190,23 @@ class JdocCliTest {
         assertThat(cli.execute("class", "X")).isEqualTo(3);
         assertThat(err.toString()).isEqualTo("error: not a JDK: /opt/jre\n");
     }
+
+    @Test
+    void missingCommandPointsAtHelpOnce() {
+        assertThat(run(found("h"))).isEqualTo(3);
+        assertThat(err.toString()).isEqualTo("error: Missing command, e.g. jdoc class <type> (see jdoc --help)\n");
+    }
+
+    @Test
+    void helpIsPrintedOnStdoutAsWritten() {
+        assertThat(run(found("h"), "index", "--help")).isZero();
+        assertThat(out.toString()).isEqualTo(HelpText.of(JdocCommand.INDEX) + "\n");
+        assertThat(err.toString()).isEmpty();
+    }
+
+    @Test
+    void versionOutsideTheJarIsADevelopmentBuild() {
+        assertThat(run(found("h"), "class", "-V")).isZero();
+        assertThat(out.toString()).isEqualTo("jdoc " + ManifestVersion.UNKNOWN + "\n");
+    }
 }
