@@ -22,8 +22,11 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>Types are matched in memory over every type name in scope (exact, prefix, camel humps, substring; a pattern
  * with a {@code .} is matched against the display name {@code java.util.Map.Entry} instead of the simple name).
- * Members are pre-selected in the index by a case-insensitive substring of the pattern and then scored, so camel-hump
- * patterns find members only where the pattern is also a substring. Results are ordered by score (kind, then
+ * Members of an all-lower-case pattern are pre-selected in the index by a case-insensitive substring of the pattern;
+ * for a camel-hump pattern (one with an upper-case letter) the index lists the distinct member names that contain the
+ * pattern's ASCII characters in order (a superset of every hump, prefix and substring match), these are matched in
+ * memory, and the rows of the matching names are read best name first.
+ * Members are then scored like types. Results are ordered by score (kind, then
  * shorter name), types before members, then alphabetically, and capped at {@link #MAX_HITS}.
  */
 @RequiredArgsConstructor
@@ -34,6 +37,7 @@ public final class FindService {
     /** Maximum number of member rows read from the index for one pattern. */
     static final int MEMBER_SCAN_LIMIT = 5_000;
     private static final int TYPE_BATCH = 256;
+    private static final int NAME_BATCH = 500;
 
     private final ScopedTypes types;
     private final MemberRepository members;
@@ -44,8 +48,9 @@ public final class FindService {
         List<FindHit> hits = new ArrayList<>(typeHits(pattern, scope));
         boolean memberScanFull = false;
         if (!pattern.pattern().contains(".")) {
-            List<IndexedMember> rows =
-                    members.searchByName(pattern.pattern(), scope.artifactIds(), MEMBER_SCAN_LIMIT);
+            List<IndexedMember> rows = pattern.usesCamelHumps()
+                    ? humpCandidates(pattern, scope)
+                    : members.searchByName(pattern.pattern(), scope.artifactIds(), MEMBER_SCAN_LIMIT);
             memberScanFull = rows.size() >= MEMBER_SCAN_LIMIT;
             hits.addAll(memberHits(pattern, rows, scope));
         }
@@ -89,6 +94,36 @@ public final class FindService {
             }
         }
         return hits;
+    }
+
+    /**
+     * Member rows whose names match a camel-hump pattern: names are matched in memory, then their rows are read in
+     * batches, best-scoring names first, up to {@link #MEMBER_SCAN_LIMIT} rows.
+     */
+    private List<IndexedMember> humpCandidates(NamePattern pattern, LookupScope scope) {
+        record ScoredName(String name, NameMatch score) {
+        }
+        List<String> names = members.listNames(scope.artifactIds(), asciiOnly(pattern.pattern())).stream()
+                .flatMap(name -> pattern.match(name).map(score -> new ScoredName(name, score)).stream())
+                .sorted(Comparator.comparing(ScoredName::score).thenComparing(ScoredName::name))
+                .map(ScoredName::name)
+                .toList();
+        List<IndexedMember> rows = new ArrayList<>();
+        for (int from = 0; from < names.size() && rows.size() < MEMBER_SCAN_LIMIT; from += NAME_BATCH) {
+            List<String> batch = names.subList(from, Math.min(names.size(), from + NAME_BATCH));
+            rows.addAll(members.findByNames(batch, scope.artifactIds(), MEMBER_SCAN_LIMIT - rows.size()));
+        }
+        return rows;
+    }
+
+    /**
+     * The pattern without non-ASCII characters: the index compares only ASCII letters ignoring case, so dropping the
+     * others keeps its subsequence filter a superset of the in-memory (Unicode case-insensitive) matches.
+     */
+    private static String asciiOnly(String pattern) {
+        StringBuilder ascii = new StringBuilder(pattern.length());
+        pattern.chars().filter(c -> c < 0x80).forEach(c -> ascii.append((char) c));
+        return ascii.toString();
     }
 
     private List<FindHit> memberHits(NamePattern pattern, List<IndexedMember> rows, LookupScope scope) {

@@ -47,7 +47,10 @@ class FindServiceTest {
                 method("util.Map", "getOrDefault", "Object key", "V value:Object"),
                 method("util.Map", "mapping"),
                 field("util.Map", "MAP_SIZE"),
-                method("util.Hidden$MapInside", "map"));
+                method("util.Hidden$MapInside", "map"),
+                method("util.Map", "getFooBar"),
+                method("util.Map", "orElseThrow"),
+                method("util.Hidden$MapInside", "getFooBaz"));
         index.add("com.other:dup:1.0", List.of(publicClass("util.Map")), method("util.Map", "mapping"));
         find = new FindService(new ScopedTypes(index.types), index.members);
     }
@@ -96,6 +99,39 @@ class FindServiceTest {
             assertThat(hit.member()).isPresent();
             assertThat(hit.score().kind()).isEqualTo(MatchKind.PREFIX);
         });
+    }
+
+    @Test
+    void camelHumpPatternsMatchMembersThatAreNotSubstrings() {
+        FindResult result = find.find("gFB", index.scope());
+
+        assertThat(result.hits()).singleElement().satisfies(hit -> {
+            assertThat(hit.reference()).isEqualTo("util.Map#getFooBar()");
+            assertThat(hit.score().kind()).isEqualTo(MatchKind.CAMEL_HUMPS);
+        });
+        assertThat(find.find("oET", index.scope()).hits()).extracting(FindHit::reference)
+                .containsExactly("util.Map#orElseThrow()");
+    }
+
+    @Test
+    void camelHumpPatternsRankMembersAndTypesTogether() {
+        FindResult result = find.find("MaP", index.scope());
+
+        assertThat(result.hits()).extracting(FindHit::reference).containsExactly(
+                "util.Map",
+                "util.Map#mapping()",
+                "util.Map#MAP_SIZE",
+                "util.HashMap",
+                "util.MutableAnyPair");
+        assertThat(result.hits()).extracting(hit -> hit.score().kind()).containsExactly(MatchKind.EXACT,
+                MatchKind.PREFIX, MatchKind.PREFIX, MatchKind.CAMEL_HUMPS, MatchKind.CAMEL_HUMPS);
+    }
+
+    @Test
+    void lowerCasePatternsKeepTheSubstringPathForMembers() {
+        assertThat(find.find("gfb", index.scope()).isEmpty()).isTrue();
+        assertThat(find.find("elsethr", index.scope()).hits()).extracting(FindHit::reference)
+                .containsExactly("util.Map#orElseThrow()");
     }
 
     @Test
