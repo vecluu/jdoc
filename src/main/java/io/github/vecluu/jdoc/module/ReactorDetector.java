@@ -1,6 +1,5 @@
 package io.github.vecluu.jdoc.module;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -55,7 +54,7 @@ public final class ReactorDetector {
             }
             for (String module : pom.modules()) {
                 Path file = modulePom(pom.directory(), module);
-                if (expanded.contains(file) || !Files.isRegularFile(file)) {
+                if (expanded.contains(file) || !hierarchy.files().isRegularFile(file)) {
                     continue;
                 }
                 hierarchy.tryRead(file).ifPresent(child -> {
@@ -72,16 +71,16 @@ public final class ReactorDetector {
             return Optional.empty();
         }
         Path aggregator = parentDirectory.resolve(ModuleLocator.POM_FILE);
-        if (!Files.isRegularFile(aggregator)) {
+        if (!hierarchy.files().isRegularFile(aggregator)) {
             return Optional.empty();
         }
         return hierarchy.tryRead(aggregator).filter(candidate -> candidate.modules().stream()
                 .anyMatch(module -> modulePom(candidate.directory(), module).equals(pom.file())));
     }
 
-    private static Path modulePom(Path directory, String module) {
+    private Path modulePom(Path directory, String module) {
         Path path = directory.resolve(module).normalize();
-        return Files.isDirectory(path) ? path.resolve(ModuleLocator.POM_FILE) : path;
+        return hierarchy.files().isDirectory(path) ? path.resolve(ModuleLocator.POM_FILE) : path;
     }
 
     private static void record(PomModel pom, Set<String> coordinates, Set<Path> visited) {

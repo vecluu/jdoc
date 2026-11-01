@@ -4,7 +4,6 @@ import io.github.vecluu.jdoc.error.ResolutionException;
 import io.github.vecluu.jdoc.model.Gav;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -64,17 +63,17 @@ public final class PomKeyCalculator {
         return new PomKey(HexFormat.of().formatHex(key.digest()), fingerprints);
     }
 
-    private static String modifiedMillis(Path file) {
+    private String modifiedMillis(Path file) {
         try {
-            return Long.toString(Files.getLastModifiedTime(file).toMillis());
+            return Long.toString(hierarchy.files().lastModifiedTime(file).toMillis());
         } catch (IOException e) {
             return "absent";
         }
     }
 
-    private static byte[] readBytes(Path file) {
+    private byte[] readBytes(Path file) {
         try {
-            return Files.readAllBytes(file);
+            return hierarchy.files().read(file);
         } catch (IOException e) {
             throw new ResolutionException("cannot read " + file + ": " + e.getMessage(), e);
         }

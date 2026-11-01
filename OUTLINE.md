@@ -63,6 +63,7 @@ The index stores where each type and member lives, its first doc sentence and it
   index.db                  SQLite, WAL mode
   modules/<key>/deps.txt    resolved classpath per module
   modules/<key>/meta.json   module path, POM hashes, resolved-at
+  module-snapshots/         file stamps per module; skips POM parsing and hashing while nothing changed
   decompiled/<g>/<a>/<v>/   Vineflower output, written once
   lock                      held while indexing
 ```

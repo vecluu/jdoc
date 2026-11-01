@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * The {@code <parent>} element of a POM.
@@ -30,9 +31,19 @@ public record ParentReference(Gav gav, Optional<String> relativePath) {
      * @param pomDirectory directory of the POM that declares this parent
      */
     public Optional<Path> localPomCandidate(Path pomDirectory) {
+        return localPomCandidate(pomDirectory, Files::isDirectory);
+    }
+
+    /**
+     * {@link #localPomCandidate(Path)} with the directory test supplied by the caller.
+     *
+     * @param pomDirectory directory of the POM that declares this parent
+     * @param isDirectory  tells whether a path is a directory
+     */
+    public Optional<Path> localPomCandidate(Path pomDirectory, Predicate<Path> isDirectory) {
         return relativePath.filter(path -> !path.isEmpty()).map(path -> {
             Path candidate = pomDirectory.resolve(path).normalize();
-            return Files.isDirectory(candidate) ? candidate.resolve("pom.xml") : candidate;
+            return isDirectory.test(candidate) ? candidate.resolve("pom.xml") : candidate;
         });
     }
 }

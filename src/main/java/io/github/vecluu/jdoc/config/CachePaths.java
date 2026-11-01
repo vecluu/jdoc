@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
  *   lock                      held while indexing
  *   modules/&lt;key&gt;/deps.txt    resolved classpath per module
  *   modules/&lt;key&gt;/meta.json   module meta
+ *   module-snapshots/&lt;hash&gt;   POM analysis per module directory (key, reactor, file stamps)
  *   decompiled/&lt;g&gt;/&lt;a&gt;/&lt;v&gt;/   Vineflower output
  * </pre>
  *
@@ -80,6 +81,11 @@ public final class CachePaths {
     /** {@code modules/<key>/meta.json}. */
     public Path metaFile(String pomKey) {
         return moduleDirectory(pomKey).resolve("meta.json");
+    }
+
+    /** Directory of the per-module-directory POM analysis snapshots. */
+    public Path moduleSnapshotsDirectory() {
+        return root.resolve("module-snapshots");
     }
 
     /** Parent of all decompiled sources. */

@@ -17,6 +17,9 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * The {@link ClasspathResolver} backed by Maven:
  *
+ * <p>The POM key and the reactor come from a {@link SnapshotPomAnalyzer}: POMs are parsed only when one of them
+ * (or a path the analysis looked at) changed since the last call for the module.
+ *
  * <ol>
  *   <li>cache hit ({@code modules/<key>/deps.txt} exists) → {@link ResolutionStatus#RESOLVED}, no Maven run;</li>
  *   <li>miss → run {@code mvn dependency:list}; on success store {@code deps.txt} and {@code meta.json};</li>
@@ -39,9 +42,7 @@ public final class MavenClasspathResolver implements ClasspathResolver {
     @NonNull
     private final PomHierarchy hierarchy;
     @NonNull
-    private final PomKeyCalculator keyCalculator;
-    @NonNull
-    private final ReactorDetector reactorDetector;
+    private final PomAnalyzer analyzer;
     @NonNull
     private final MavenDependencyLister lister;
     @NonNull
@@ -60,12 +61,16 @@ public final class MavenClasspathResolver implements ClasspathResolver {
 
     /** Wires the standard components for an environment with the given Maven invoker and clock. */
     public static MavenClasspathResolver create(JdocEnvironment environment, MavenInvoker invoker, Clock clock) {
-        PomHierarchy hierarchy = new PomHierarchy(new PomReader());
+        RecordingPomFiles files = new RecordingPomFiles(new NioPomFiles());
+        PomHierarchy hierarchy = new PomHierarchy(new PomReader(), files);
+        PomAnalyzer parsing = new ParsingPomAnalyzer(new PomKeyCalculator(hierarchy, environment.localRepository()),
+                new ReactorDetector(hierarchy));
         return builder()
                 .locator(new ModuleLocator(environment.workingDirectory()))
                 .hierarchy(hierarchy)
-                .keyCalculator(new PomKeyCalculator(hierarchy, environment.localRepository()))
-                .reactorDetector(new ReactorDetector(hierarchy))
+                .analyzer(new SnapshotPomAnalyzer(parsing, files,
+                        new FileModuleSnapshotStore(environment.cachePaths(), new ModuleSnapshotCodec()),
+                        new NioPathStamper(), environment.localRepository(), clock))
                 .lister(MavenDependencyLister.withExtraArguments(invoker, environment.localRepositoryExplicit()
                         ? List.of("-Dmaven.repo.local=" + environment.localRepository())
                         : List.of()))
@@ -80,8 +85,9 @@ public final class MavenClasspathResolver implements ClasspathResolver {
     public ModuleClasspath resolve(Path start) {
         Path moduleDirectory = locator.locate(start);
         Path modulePom = moduleDirectory.resolve(ModuleLocator.POM_FILE);
-        PomKey key = keyCalculator.calculate(modulePom);
-        Reactor reactor = reactorDetector.detect(moduleDirectory);
+        PomAnalysis analysis = analyzer.analyze(moduleDirectory);
+        PomKey key = analysis.key();
+        Reactor reactor = analysis.reactor();
 
         Optional<String> cached = cache.readDependencyList(key.value());
         if (cached.isPresent()) {

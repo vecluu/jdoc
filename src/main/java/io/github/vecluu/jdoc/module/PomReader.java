@@ -3,8 +3,8 @@ package io.github.vecluu.jdoc.module;
 import io.github.vecluu.jdoc.error.ResolutionException;
 import io.github.vecluu.jdoc.model.Gav;
 import io.github.vecluu.jdoc.model.Scope;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -31,6 +31,9 @@ import org.xml.sax.helpers.DefaultHandler;
  *
  * <p>Values are interpolated with the POM's own {@code <properties>} and {@code project.*} / {@code parent.*}
  * coordinates; anything else stays as written.
+ *
+ * <p>The XML parser factory is created on the first parse, so wiring a reader costs nothing on calls that answer from
+ * a {@link SnapshotPomAnalyzer} snapshot. An instance is confined to one thread.
  */
 @Slf4j
 public final class PomReader {
@@ -38,7 +41,7 @@ public final class PomReader {
     private static final Pattern PROPERTY = Pattern.compile("\\$\\{([^}]+)}");
     private static final int MAX_INTERPOLATION_ROUNDS = 5;
 
-    private final DocumentBuilderFactory factory = secureFactory();
+    private Optional<DocumentBuilderFactory> factory = Optional.empty();
 
     /**
      * Reads a POM file.
@@ -46,7 +49,23 @@ public final class PomReader {
      * @throws ResolutionException if the file cannot be read or is not a well-formed POM
      */
     public PomModel read(Path pomFile) {
-        Element project = parse(pomFile);
+        byte[] content;
+        try {
+            content = Files.readAllBytes(pomFile);
+        } catch (IOException e) {
+            throw new ResolutionException("cannot read " + pomFile + ": " + e.getMessage(), e);
+        }
+        return read(pomFile, content);
+    }
+
+    /**
+     * Reads a POM from its already loaded bytes.
+     *
+     * @param pomFile the file the bytes came from (for relative paths and messages)
+     * @throws ResolutionException if the content is not a well-formed POM
+     */
+    public PomModel read(Path pomFile, byte[] content) {
+        Element project = parse(pomFile, content);
         Map<String, String> properties = new HashMap<>();
         child(project, "properties").ifPresent(element -> {
             for (Element property : children(element)) {
@@ -92,12 +111,12 @@ public final class PomReader {
         return new PomModel(pomFile, coordinates, parent, modules, dependencies);
     }
 
-    private Element parse(Path pomFile) {
+    private Element parse(Path pomFile, byte[] content) {
         Document document;
-        try (InputStream in = Files.newInputStream(pomFile)) {
-            DocumentBuilder builder = factory.newDocumentBuilder();
+        try {
+            DocumentBuilder builder = factory().newDocumentBuilder();
             builder.setErrorHandler(new DefaultHandler());
-            document = builder.parse(in, pomFile.toUri().toString());
+            document = builder.parse(new ByteArrayInputStream(content), pomFile.toUri().toString());
         } catch (IOException e) {
             throw new ResolutionException("cannot read " + pomFile + ": " + e.getMessage(), e);
         } catch (SAXException e) {
@@ -183,6 +202,13 @@ public final class PomReader {
             }
         }
         return elements;
+    }
+
+    private DocumentBuilderFactory factory() {
+        if (factory.isEmpty()) {
+            factory = Optional.of(secureFactory());
+        }
+        return factory.get();
     }
 
     private static DocumentBuilderFactory secureFactory() {
