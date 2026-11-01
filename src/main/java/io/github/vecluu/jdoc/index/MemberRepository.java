@@ -32,4 +32,19 @@ public interface MemberRepository {
 
     /** Members whose name contains {@code text}, ignoring (ASCII) case; at most {@code limit} rows. */
     List<IndexedMember> searchByName(String text, Collection<Long> artifactIds, int limit);
+
+    /**
+     * The distinct names (case-sensitive) of members of types in scope that contain the characters of
+     * {@code subsequence} in order, with anything in between, ignoring ASCII case like {@code LIKE} (other characters
+     * compare exactly); an empty {@code subsequence} lists every name. No particular order. Used by
+     * {@code jdoc find} to match camel-hump patterns in memory: every hump match of a pattern contains the pattern
+     * as such a subsequence.
+     */
+    List<String> listNames(Collection<Long> artifactIds, String subsequence);
+
+    /**
+     * Members whose name equals one of {@code names} (case-sensitive) of types in scope, ordered by type name then
+     * declaration; at most {@code limit} rows.
+     */
+    List<IndexedMember> findByNames(Collection<String> names, Collection<Long> artifactIds, int limit);
 }

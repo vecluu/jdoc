@@ -139,6 +139,51 @@ class JdbcMemberRepositoryTest {
     }
 
     @Test
+    void listsDistinctMemberNamesWithinScope() {
+        members.insertAll(typeA, List.of(method("p.Alpha", "getValue"), method("p.Alpha", "getValue"),
+                method("p.Alpha", "GETVALUE"), field("p.Alpha", "size")));
+        members.insertAll(typeB, List.of(method("q.Beta", "getValue"), method("q.Beta", "onlyInBeta")));
+
+        assertThat(members.listNames(List.of(libA), "")).containsExactlyInAnyOrder("getValue", "GETVALUE", "size");
+        assertThat(members.listNames(List.of(libA, libB), ""))
+                .containsExactlyInAnyOrder("getValue", "GETVALUE", "size", "onlyInBeta");
+        assertThat(members.listNames(List.of(libB), "")).containsExactlyInAnyOrder("getValue", "onlyInBeta");
+        assertThat(members.listNames(List.of(), "")).isEmpty();
+    }
+
+    @Test
+    void filtersNamesBySubsequenceIgnoringAsciiCase() {
+        members.insertAll(typeA, List.of(method("p.Alpha", "getFooBar"), method("p.Alpha", "orElseThrow"),
+                method("p.Alpha", "fooGetT"), field("p.Alpha", "MAX_VALUE"), field("p.Alpha", "MAXVALUE")));
+
+        assertThat(members.listNames(List.of(libA), "gFB")).containsExactly("getFooBar");
+        assertThat(members.listNames(List.of(libA), "oet")).containsExactlyInAnyOrder("orElseThrow", "fooGetT");
+        assertThat(members.listNames(List.of(libA), "M_V")).containsExactly("MAX_VALUE");
+        assertThat(members.listNames(List.of(libA), "%")).isEmpty();
+        assertThat(members.listNames(List.of(libA), "xyz")).isEmpty();
+    }
+
+    @Test
+    void findsByExactNamesWithinScopeWithLimit() {
+        members.insertAll(typeA, List.of(method("p.Alpha", "getFooBar"), method("p.Alpha", "GETFOOBAR"),
+                method("p.Alpha", "orElseThrow"), field("p.Alpha", "x\"y"), method("p.Alpha", "other")));
+        members.insertAll(typeB, List.of(method("q.Beta", "getFooBar")));
+
+        assertThat(members.findByNames(List.of("getFooBar", "orElseThrow"), List.of(libA), 10))
+                .extracting(m -> m.descriptor().name()).containsExactly("getFooBar", "orElseThrow");
+        assertThat(members.findByNames(List.of("getFooBar"), List.of(libA, libB), 10))
+                .extracting(m -> m.descriptor().reference())
+                .containsExactly("p.Alpha#getFooBar()", "q.Beta#getFooBar()");
+        assertThat(members.findByNames(List.of("getFooBar"), List.of(libA, libB), 1)).hasSize(1);
+        assertThat(members.findByNames(List.of("x\"y"), List.of(libA), 10))
+                .extracting(m -> m.descriptor().name()).containsExactly("x\"y");
+        assertThat(members.findByNames(List.of("missing"), List.of(libA), 10)).isEmpty();
+        assertThat(members.findByNames(List.of(), List.of(libA), 10)).isEmpty();
+        assertThat(members.findByNames(List.of("getFooBar"), List.of(), 10)).isEmpty();
+        assertThat(members.findByNames(List.of("getFooBar"), List.of(libA), 0)).isEmpty();
+    }
+
+    @Test
     void emptyInsertReturnsZero() {
         assertThat(members.insertAll(typeA, List.of())).isZero();
         assertThat(members.membersOf(typeA)).isEmpty();

@@ -120,6 +120,31 @@ public final class JdbcMemberRepository implements MemberRepository {
         }, JdbcMemberRepository::map);
     }
 
+    @Override
+    public List<String> listNames(Collection<Long> artifactIds, String subsequence) {
+        if (artifactIds.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(sql.query("""
+                SELECT DISTINCT m.name FROM members m JOIN types t ON t.id = m.type_id
+                WHERE m.name LIKE ? ESCAPE '\\' AND""" + SCOPED, s -> {
+            s.setString(1, IdList.subsequencePattern(subsequence));
+            s.setString(2, IdList.json(artifactIds));
+        }, row -> row.getString(1)));
+    }
+
+    @Override
+    public List<IndexedMember> findByNames(Collection<String> names, Collection<Long> artifactIds, int limit) {
+        if (names.isEmpty() || artifactIds.isEmpty() || limit <= 0) {
+            return List.of();
+        }
+        return sql.query(SELECT + " WHERE m.name" + IdList.IN_LIST + " AND" + SCOPED + ORDER + " LIMIT ?", s -> {
+            s.setString(1, IdList.jsonStrings(names));
+            s.setString(2, IdList.json(artifactIds));
+            s.setInt(3, limit);
+        }, JdbcMemberRepository::map);
+    }
+
     private static IndexedMember map(ResultSet row) throws SQLException {
         MemberDescriptor descriptor = MemberDescriptor.builder()
                 .declaringType(TypeName.of(row.getString("binary_name")))
