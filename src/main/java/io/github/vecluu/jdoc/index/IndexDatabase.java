@@ -12,8 +12,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.sqlite.SQLiteConfig;
 
 /**
@@ -25,8 +29,11 @@ import org.sqlite.SQLiteConfig;
  *
  * <p>Write work is grouped with {@link #inTransaction(Supplier)}; nested calls join the outer transaction. An instance
  * wraps a single connection and must be confined to one thread at a time; open one instance per thread if needed.
+ *
+ * <p>{@link #openInBackground(CachePaths)} opens the file on a background thread and returns at once, so the caller
+ * can do other work (e.g. resolve the module's classpath) while sqlite-jdbc loads its native library and the
+ * connection is initialised. The first use of the instance waits for the open to finish and rethrows its failure.
  */
-@Slf4j
 public final class IndexDatabase implements AutoCloseable {
 
     /** Default time a statement waits for another process's write lock. */
@@ -35,13 +42,44 @@ public final class IndexDatabase implements AutoCloseable {
     private static final int SQLITE_BUSY = 5;
     private static final int SQLITE_LOCKED = 6;
 
+    /** Looked up on use only: initialising slf4j would otherwise delay starting the background open. */
+    private static Logger log() {
+        return LoggerFactory.getLogger(IndexDatabase.class);
+    }
+
     private final Path file;
-    private final Connection connection;
+    private final Future<Connection> opening;
+    private Connection connection;
     private int transactionDepth;
 
     private IndexDatabase(Path file, Connection connection) {
         this.file = file;
+        this.opening = CompletableFuture.completedFuture(connection);
         this.connection = connection;
+    }
+
+    private IndexDatabase(Path file, Future<Connection> opening) {
+        this.file = file;
+        this.opening = opening;
+    }
+
+    /**
+     * Starts opening the cache's {@code index.db} like {@link #open(CachePaths)}, on a background daemon thread, and
+     * returns at once. The first call that needs the connection waits for the open; if it failed, that call throws
+     * the open's {@link IndexException} (or {@link io.github.vecluu.jdoc.error.CacheIoException}).
+     * {@link #close()} waits for a pending open and ignores its failure.
+     */
+    public static IndexDatabase openInBackground(CachePaths paths) {
+        Objects.requireNonNull(paths, "paths");
+        CompletableFuture<Connection> opening = new CompletableFuture<>();
+        Thread.ofPlatform().name("jdoc-index-open").daemon().start(() -> {
+            try {
+                opening.complete(open(paths).connection);
+            } catch (Throwable e) {
+                opening.completeExceptionally(e);
+            }
+        });
+        return new IndexDatabase(paths.indexDb(), opening);
     }
 
     /** Opens (creating if needed) the cache's {@code index.db}, creating the cache directory first. */
@@ -136,7 +174,7 @@ public final class IndexDatabase implements AutoCloseable {
 
     /** The schema version stored in the file. */
     public int schemaVersion() {
-        try (Statement statement = connection.createStatement();
+        try (Statement statement = connection().createStatement();
              ResultSet rows = statement.executeQuery("PRAGMA user_version")) {
             return rows.next() ? rows.getInt(1) : 0;
         } catch (SQLException e) {
@@ -144,17 +182,55 @@ public final class IndexDatabase implements AutoCloseable {
         }
     }
 
-    /** The underlying connection, for this package's repositories. */
+    /** The underlying connection, for this package's repositories; waits for a background open to finish. */
     Connection connection() {
+        if (connection == null) {
+            connection = awaitOpen();
+        }
         return connection;
     }
 
     @Override
     public void close() {
+        Connection open = connection;
+        if (open == null) {
+            try {
+                open = awaitOpen();
+            } catch (RuntimeException e) {
+                log().debug("index database {} was never opened: {}", file, e.getMessage());
+                return;
+            }
+        }
         try {
-            connection.close();
+            open.close();
         } catch (SQLException e) {
             throw new IndexException("cannot close index database " + file + ": " + e.getMessage(), e);
+        }
+    }
+
+    private Connection awaitOpen() {
+        boolean interrupted = false;
+        try {
+            while (true) {
+                try {
+                    return opening.get();
+                } catch (InterruptedException e) {
+                    interrupted = true;
+                }
+            }
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IndexException("cannot open index database " + file + ": " + cause.getMessage(), cause);
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -173,7 +249,7 @@ public final class IndexDatabase implements AutoCloseable {
                 if (!isBusy(e) || Instant.now().plusMillis(pauseMillis).isAfter(deadline)) {
                     throw e;
                 }
-                log.debug("{} is busy while opening, retrying in {} ms", file, pauseMillis);
+                log().debug("{} is busy while opening, retrying in {} ms", file, pauseMillis);
                 sleep(pauseMillis);
                 pauseMillis = Math.min(200, pauseMillis * 2);
             }
@@ -202,11 +278,11 @@ public final class IndexDatabase implements AutoCloseable {
     }
 
     private void enableWal() {
-        try (Statement statement = connection.createStatement();
+        try (Statement statement = connection().createStatement();
              ResultSet rows = statement.executeQuery("PRAGMA journal_mode = WAL")) {
             String mode = rows.next() ? rows.getString(1) : "";
             if (!"wal".equalsIgnoreCase(mode)) {
-                log.warn("{} does not support WAL mode (journal mode is {})", file, mode);
+                log().warn("{} does not support WAL mode (journal mode is {})", file, mode);
             }
         } catch (SQLException e) {
             throw new IndexException("cannot switch " + file + " to WAL mode: " + e.getMessage(), e);
@@ -220,9 +296,9 @@ public final class IndexDatabase implements AutoCloseable {
                 return;
             }
             if (version != 0) {
-                log.debug("index schema version {} != {}, rebuilding {}", version, Schema.VERSION, file);
+                log().debug("index schema version {} != {}, rebuilding {}", version, Schema.VERSION, file);
             }
-            try (Statement statement = connection.createStatement()) {
+            try (Statement statement = connection().createStatement()) {
                 dropAll(statement);
                 for (String ddl : Schema.STATEMENTS) {
                     statement.execute(ddl);
@@ -250,7 +326,7 @@ public final class IndexDatabase implements AutoCloseable {
 
     private void begin() {
         try {
-            connection.setAutoCommit(false);
+            connection().setAutoCommit(false);
         } catch (SQLException e) {
             throw new IndexException("cannot begin transaction on " + file + ": " + e.getMessage(), e);
         }
@@ -259,7 +335,7 @@ public final class IndexDatabase implements AutoCloseable {
     private void commit() {
         try {
             // JDBC: switching auto-commit back on commits the open transaction.
-            connection.setAutoCommit(true);
+            connection().setAutoCommit(true);
         } catch (SQLException e) {
             rollback(e);
             throw new IndexException("cannot commit transaction on " + file + ": " + e.getMessage(), e);
@@ -268,8 +344,8 @@ public final class IndexDatabase implements AutoCloseable {
 
     private void rollback(Throwable cause) {
         try {
-            connection.rollback();
-            connection.setAutoCommit(true);
+            connection().rollback();
+            connection().setAutoCommit(true);
         } catch (SQLException e) {
             cause.addSuppressed(e);
         }

@@ -120,6 +120,38 @@ class IndexDatabaseTest {
     }
 
     @Test
+    void opensInBackgroundAndIsUsableRightAway() {
+        CachePaths paths = new CachePaths(tmp.resolve("cache"));
+        try (IndexDatabase database = IndexDatabase.openInBackground(paths)) {
+            assertThat(database.file()).isEqualTo(paths.indexDb());
+            assertThat(database.schemaVersion()).isEqualTo(Schema.VERSION);
+            assertThat(database.inTransaction(() -> 42)).isEqualTo(42);
+        }
+        assertThat(paths.indexDb()).exists();
+    }
+
+    @Test
+    void backgroundOpenFailureSurfacesOnFirstUseAndCloseIgnoresIt() throws Exception {
+        CachePaths paths = new CachePaths(tmp.resolve("cache"));
+        Files.createDirectories(paths.indexDb());
+        IndexDatabase database = IndexDatabase.openInBackground(paths);
+
+        assertThatThrownBy(database::schemaVersion).isInstanceOf(IndexException.class);
+        assertThatThrownBy(database::schemaVersion).isInstanceOf(IndexException.class);
+        database.close();
+    }
+
+    @Test
+    void closingAnUnusedBackgroundOpenClosesItsConnection() {
+        CachePaths paths = new CachePaths(tmp.resolve("cache"));
+        IndexDatabase.openInBackground(paths).close();
+
+        try (IndexDatabase again = IndexDatabase.open(paths)) {
+            assertThat(again.schemaVersion()).isEqualTo(Schema.VERSION);
+        }
+    }
+
+    @Test
     void failsCleanlyOnUnopenableFile() throws Exception {
         Path directory = Files.createDirectory(tmp.resolve("is-a-directory"));
         assertThatThrownBy(() -> IndexDatabase.open(directory, Duration.ofMillis(100)))

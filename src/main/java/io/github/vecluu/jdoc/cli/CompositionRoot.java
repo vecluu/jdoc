@@ -45,8 +45,9 @@ import java.util.function.Supplier;
 /**
  * The composition root: the only place constructing the concrete components, from a {@link JdocEnvironment}.
  *
- * <p>Startup cost is kept off the hot path: constructing the graph is cheap (no I/O besides opening
- * {@code index.db} and reading the JDK's {@code release} file). Lookups read rendered docs from the index, so the
+ * <p>Startup cost is kept off the hot path: constructing the graph is cheap (no I/O besides reading the
+ * JDK's {@code release} file; {@code index.db} is opened on a background thread while the command resolves the
+ * module's classpath). Lookups read rendered docs from the index, so the
  * indexing components (ASM scanner, javadoc-page parser on jsoup, javac parsers) are created only when an artifact or
  * the JDK actually has to be (re-)indexed; javac is otherwise only touched by {@code jdoc source}, and Vineflower
  * only when a type is actually decompiled. The returned {@link Application} closes the database.
@@ -63,9 +64,11 @@ public final class CompositionRoot {
      */
     public static Application create(JdocEnvironment environment) {
         CachePaths paths = environment.cachePaths();
-        JdkInfo jdk = new JdkInfoReader().read(environment.javaHome());
-        IndexDatabase database = IndexDatabase.open(paths);
+        // Opened first, on a background thread (sqlite-jdbc's native library and connection setup), while this
+        // thread wires the graph and the command resolves the module's classpath; the first query waits for it.
+        IndexDatabase database = IndexDatabase.openInBackground(paths);
         try {
+            JdkInfo jdk = new JdkInfoReader().read(environment.javaHome());
             Clock clock = Clock.systemUTC();
             JdbcArtifactRepository artifacts = new JdbcArtifactRepository(database);
             JdbcTypeRepository types = new JdbcTypeRepository(database);
