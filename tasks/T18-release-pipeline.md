@@ -28,3 +28,5 @@ drafts there are the starting point; adapt them to what was actually built (T14 
 - Run `assemble.sh`, the install check and `smoke-test.sh` locally and report results and timings in the notes.
 - `actionlint` and `shellcheck` if available (do not require them).
 - Do not push. The orchestrator asks the user before any push that is not a pipeline test.
+
+Environment note: Maven 3.10.0 is at `/opt/maven/apache-maven-3.10.0/bin/mvn`. Agent shells may not have it on PATH; prepend that directory to PATH in your commands (or set `JDOC_MVN`). Do not hardcode the path in code or committed scripts.

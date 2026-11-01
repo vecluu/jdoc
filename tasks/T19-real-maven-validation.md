@@ -24,3 +24,5 @@ Every test so far used a fake `mvn`. Run jdoc against real Maven and real `~/.m2
 
 ## Done when
 Open questions answered in the notes (orchestrator copies the answers into `OUTLINE.md`), bugs fixed with tests.
+
+Environment note: Maven 3.10.0 is at `/opt/maven/apache-maven-3.10.0/bin/mvn`. Agent shells may not have it on PATH; prepend that directory to PATH in your commands (or set `JDOC_MVN`). Do not hardcode the path in code or committed scripts.
