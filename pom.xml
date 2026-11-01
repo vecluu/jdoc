@@ -19,7 +19,6 @@
         <main.class>io.github.vecluu.jdoc.Main</main.class>
 
         <!-- runtime -->
-        <picocli.version>4.7.7</picocli.version>
         <sqlite-jdbc.version>3.54.1.0</sqlite-jdbc.version>
         <jsoup.version>1.23.2</jsoup.version>
         <asm.version>9.11.1</asm.version>
@@ -51,11 +50,6 @@
     </dependencyManagement>
 
     <dependencies>
-        <dependency>
-            <groupId>info.picocli</groupId>
-            <artifactId>picocli</artifactId>
-            <version>${picocli.version}</version>
-        </dependency>
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>

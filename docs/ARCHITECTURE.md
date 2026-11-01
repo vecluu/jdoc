@@ -23,7 +23,7 @@ how the Java program is structured. Only the Java CLI is in scope (no CI pipelin
 | jsoup | Javadoc-jar HTML |
 | ASM (`org.ow2.asm:asm`) | Binary class files: type list, signatures, supertypes |
 | Vineflower | Last-resort decompiling |
-| picocli | CLI parsing, `--help` |
+| (none) | CLI parsing and `--help` are hand-written in `cli` (picocli dropped in T14: startup cost, not AOT-cacheable) |
 | slf4j-api + slf4j-simple | Logging, to **stderr only** |
 | Lombok (provided) | Boilerplate reduction |
 | JUnit Jupiter 6, AssertJ (test) | Tests. No Mockito: use hand-written fakes behind interfaces. |
@@ -49,7 +49,7 @@ Arrows show allowed dependencies; nothing may depend "upwards" (e.g. `index` mus
 | `indexer` | T08 | Lazy/forced indexing of artifacts and the JDK, per-type doc-source fallback, refresh | everything above except `query`, `text` |
 | `lookup` | T09 | Read-side services: type resolution, hierarchy, find, impls, member search, on-demand docs and source | `index`, `source`, `javadoc`, `bytecode`, `decompile`, `query`, `model`, `config`, `error` |
 | `app` | T10 | One application service per command, producing `CommandResult` | all of the above |
-| `cli` | T10 | picocli commands, options, exit codes, composition root | `app`, `config`, `text`; the composition root may import every package |
+| `cli` | T10, T14 | hand-written command-line parser and help, exit codes, composition root | `app`, `config`, `text`; the composition root may import every package |
 
 ## Cross-cutting rules
 
