@@ -64,6 +64,37 @@ class ArtifactIndexerIT {
     }
 
     @Test
+    void storesRenderedDocsForSourcesAndJavadocTypesAndNoneForDecompiledOnes() {
+        IndexedType circle = fixture.type(SampleLibrary.CIRCLE, artifactId);
+        assertThat(fixture.docs.typeDoc(circle.id())).hasValueSatisfying(doc ->
+                assertThat(doc.firstSentence()).isEqualTo(circle.descriptor().firstSentence()).isNotBlank());
+        assertThat(fixture.members(SampleLibrary.CIRCLE, artifactId))
+                .filteredOn(member -> member.descriptor().name().equals("radius"))
+                .singleElement()
+                .satisfies(radius -> assertThat(fixture.docs.memberDoc(radius.id())).hasValueSatisfying(doc -> {
+                    assertThat(doc.firstSentence()).isEqualTo(radius.descriptor().firstSentence());
+                    assertThat(doc.blockTags()).containsExactly("@return the radius");
+                }));
+
+        IndexedType generated = fixture.type(SampleLibrary.GENERATED_MODEL, artifactId);
+        assertThat(fixture.docs.typeDoc(generated.id())).hasValueSatisfying(doc ->
+                assertThat(doc.description()).isNotBlank());
+        assertThat(fixture.members(SampleLibrary.GENERATED_MODEL, artifactId))
+                .filteredOn(member -> member.descriptor().name().equals("withId"))
+                .singleElement()
+                .satisfies(withId -> assertThat(fixture.docs.memberDoc(withId.id())).hasValueSatisfying(doc ->
+                        assertThat(doc.blockTags()).anyMatch(tag -> tag.startsWith("@param id"))));
+
+        IndexedType kotlin = fixture.type(SampleLibrary.KOTLIN_UTILS, artifactId);
+        assertThat(fixture.docs.typeDoc(kotlin.id())).isEmpty();
+        assertThat(fixture.members(SampleLibrary.KOTLIN_UTILS, artifactId))
+                .isNotEmpty()
+                .allSatisfy(member -> assertThat(fixture.docs.memberDoc(member.id())).isEmpty());
+        assertThat(fixture.docs.packageDoc(artifactId, SampleLibrary.PACKAGE)).hasValueSatisfying(doc ->
+                assertThat(doc.description()).isNotBlank());
+    }
+
+    @Test
     void everyTypeGetsTheRightDocSource() {
         Map<TypeName, DocSource> docSources = fixture.types.listNames(List.of(artifactId)).stream()
                 .collect(Collectors.toMap(ref -> ref.name(), ref -> type(ref.name()).docSource()));

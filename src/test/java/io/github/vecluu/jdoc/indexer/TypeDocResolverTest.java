@@ -7,6 +7,7 @@ import io.github.vecluu.jdoc.javadoc.JavadocJarReader;
 import io.github.vecluu.jdoc.javadoc.JavadocPageParser;
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.MemberDescriptor;
+import io.github.vecluu.jdoc.model.RenderedDoc;
 import io.github.vecluu.jdoc.model.TypeName;
 import io.github.vecluu.jdoc.source.JavaSourceParser;
 import io.github.vecluu.jdoc.source.KnownTypes;
@@ -60,7 +61,7 @@ class TypeDocResolverTest {
     }
 
     private static List<String> signatures(TypeEntry entry) {
-        return entry.members().stream().map(MemberDescriptor::signature).toList();
+        return entry.memberDescriptors().stream().map(MemberDescriptor::signature).toList();
     }
 
     @Test
@@ -81,9 +82,12 @@ class TypeDocResolverTest {
         assertThat(foo.type().supertypes()).containsExactly(exactBase);
         assertThat(foo.type().declarationRange()).isPresent();
         assertThat(signatures(foo)).containsExactly("void run()", "Foo()");
-        assertThat(foo.members().getFirst().firstSentence()).isEqualTo("Runs.");
+        assertThat(foo.memberDescriptors().getFirst().firstSentence()).isEqualTo("Runs.");
+        assertThat(foo.doc().description()).isEqualTo("Foo from source.");
+        assertThat(foo.memberDocs()).extracting(RenderedDoc::description).containsExactly("Runs.", "");
         TypeEntry inner = result.get(TypeName.of("p.Foo$Inner"));
         assertThat(inner.type().docSource()).isEqualTo(DocSource.SOURCES);
+        assertThat(inner.doc().firstSentence()).isEqualTo("Nested from source.");
         assertThat(inner.type().firstSentence()).isEqualTo("Nested from source.");
         assertThat(signatures(inner)).containsExactly("Inner()");
     }
@@ -102,7 +106,7 @@ class TypeDocResolverTest {
         TypeEntry generated = result.get(TypeName.of("p.Foo$Generated"));
         assertThat(generated.type().docSource()).isEqualTo(DocSource.JAVADOC);
         assertThat(generated.type().firstSentence()).isEqualTo("Generated thing.");
-        assertThat(generated.members().getFirst().firstSentence()).isEqualTo("Makes it.");
+        assertThat(generated.memberDescriptors().getFirst().firstSentence()).isEqualTo("Makes it.");
         assertThat(result.get(TypeName.of("p.Foo$Other")).type().docSource()).isEqualTo(DocSource.DECOMPILED);
     }
 
@@ -119,7 +123,11 @@ class TypeDocResolverTest {
         assertThat(foo.type().docSource()).isEqualTo(DocSource.JAVADOC);
         assertThat(foo.type().entryPath()).isEqualTo("p/Foo.html");
         assertThat(foo.type().firstSentence()).isEqualTo("Foo from javadoc.");
-        assertThat(foo.members()).extracting(MemberDescriptor::firstSentence).containsExactly("Runs from javadoc.", "");
+        assertThat(foo.memberDescriptors()).extracting(MemberDescriptor::firstSentence)
+                .containsExactly("Runs from javadoc.", "");
+        assertThat(foo.doc().description()).isEqualTo("Foo from javadoc. More.");
+        assertThat(foo.memberDocs().getFirst().description()).isEqualTo("Runs from javadoc.");
+        assertThat(foo.memberDocs().get(1)).isEqualTo(RenderedDoc.missing());
         TypeEntry inner = result.get(TypeName.of("p.Foo$Inner"));
         assertThat(inner.type().docSource()).isEqualTo(DocSource.JAVADOC);
         assertThat(inner.type().entryPath()).isEqualTo("p/Foo.Inner.html");
@@ -136,6 +144,25 @@ class TypeDocResolverTest {
         assertThat(foo.type().entryPath()).isEqualTo("p/Foo.class");
         assertThat(foo.type().firstSentence()).isEmpty();
         assertThat(signatures(foo)).containsExactly("void run()");
+        assertThat(foo.doc()).isEqualTo(RenderedDoc.missing());
+        assertThat(foo.memberDocs()).containsOnly(RenderedDoc.missing());
+    }
+
+    @Test
+    void packageDocPrefersANonEmptyPackageInfoOverThePackagePage() {
+        List<ScannedClass> group = List.of(Scanned.type("p.Foo"));
+        MapSourceArchive sources = new MapSourceArchive()
+                .with("p/package-info.java", "/** Package p from source. */ package p;")
+                .with("q/package-info.java", "package q;");
+        MapJavadocArchive javadoc = new MapJavadocArchive()
+                .withPackagePage("p/package-summary.html", "Package p from javadoc.")
+                .withPackagePage("q/package-summary.html", "Package q from javadoc.");
+        TypeDocResolver resolver = resolver(sources, javadoc, group);
+
+        assertThat(resolver.packageDoc("p")).map(RenderedDoc::description).contains("Package p from source.");
+        assertThat(resolver.packageDoc("q")).map(RenderedDoc::description).contains("Package q from javadoc.");
+        assertThat(resolver.packageDoc("r")).isEmpty();
+        assertThat(resolver(null, null, group).packageDoc("p")).isEmpty();
     }
 
     @Test

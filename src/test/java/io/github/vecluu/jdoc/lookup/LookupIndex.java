@@ -3,17 +3,23 @@ package io.github.vecluu.jdoc.lookup;
 import io.github.vecluu.jdoc.decompile.DecompiledSourceProvider;
 import io.github.vecluu.jdoc.index.IndexDatabase;
 import io.github.vecluu.jdoc.index.JdbcArtifactRepository;
+import io.github.vecluu.jdoc.index.JdbcDocRepository;
+import io.github.vecluu.jdoc.index.JdbcFailedArtifactRepository;
 import io.github.vecluu.jdoc.index.JdbcMemberRepository;
 import io.github.vecluu.jdoc.index.JdbcSupertypeRepository;
 import io.github.vecluu.jdoc.index.JdbcTypeRepository;
+import io.github.vecluu.jdoc.indexer.MemberEntry;
+import io.github.vecluu.jdoc.indexer.SqliteIndexStore;
+import io.github.vecluu.jdoc.indexer.StoredArtifact;
+import io.github.vecluu.jdoc.indexer.TypeEntry;
 import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.Gav;
 import io.github.vecluu.jdoc.model.IndexedArtifact;
-import io.github.vecluu.jdoc.model.IndexedType;
 import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.MemberKind;
 import io.github.vecluu.jdoc.model.ParameterInfo;
+import io.github.vecluu.jdoc.model.RenderedDoc;
 import io.github.vecluu.jdoc.model.ResolutionStatus;
 import io.github.vecluu.jdoc.model.TypeDescriptor;
 import io.github.vecluu.jdoc.model.TypeKind;
@@ -22,7 +28,6 @@ import io.github.vecluu.jdoc.model.Visibility;
 import io.github.vecluu.jdoc.source.JavaSource;
 import io.github.vecluu.jdoc.source.JavaSourceParser;
 import io.github.vecluu.jdoc.source.KnownTypes;
-import io.github.vecluu.jdoc.source.ParsedMember;
 import io.github.vecluu.jdoc.source.ParsedSourceFile;
 import io.github.vecluu.jdoc.source.ParsedType;
 import io.github.vecluu.jdoc.testsupport.JarWriter;
@@ -41,9 +46,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Test helper: a real SQLite index in a temp directory, populated through T03's repositories with hand-built
- * descriptors or with descriptors parsed by T04 from hand-written sources (written to a real sources jar or
- * {@code src.zip}).
+ * Test helper: a real SQLite index in a temp directory, populated through T08's {@link SqliteIndexStore} (so docs are
+ * stored exactly as the indexer stores them) with hand-built descriptors or with types and docs parsed by T04 from
+ * hand-written sources (also written to a real sources jar or {@code src.zip} for {@code jdoc source}).
  */
 final class LookupIndex implements AutoCloseable {
 
@@ -52,6 +57,8 @@ final class LookupIndex implements AutoCloseable {
     final JdbcTypeRepository types;
     final JdbcSupertypeRepository supertypes;
     final JdbcMemberRepository members;
+    final JdbcDocRepository docs;
+    private final SqliteIndexStore store;
     private final Path directory;
     private final List<ScopedArtifact> scope = new ArrayList<>();
     private JavaSourceParser parser;
@@ -63,6 +70,9 @@ final class LookupIndex implements AutoCloseable {
         this.types = new JdbcTypeRepository(database);
         this.supertypes = new JdbcSupertypeRepository(database);
         this.members = new JdbcMemberRepository(database);
+        this.docs = new JdbcDocRepository(database);
+        this.store = new SqliteIndexStore(database, artifacts, types, members,
+                new JdbcFailedArtifactRepository(database), docs);
     }
 
     static LookupIndex open(Path directory) {
@@ -74,33 +84,52 @@ final class LookupIndex implements AutoCloseable {
         return new LookupScope(scope, ResolutionStatus.RESOLVED);
     }
 
-    LookupServices services(JavadocDocs javadoc, DecompiledSourceProvider decompiled) {
-        return LookupServices.create(artifacts, types, supertypes, members, new ZipJarEntryReader(), javadoc,
+    LookupServices services(DecompiledSourceProvider decompiled) {
+        return LookupServices.create(artifacts, types, supertypes, members, docs, new ZipJarEntryReader(),
                 decompiled);
     }
 
     LookupServices services() {
-        return services(new JarJavadocDocs(), (gav, jar, type) -> {
+        return services((gav, jar, type) -> {
             throw new AssertionError("unexpected decompile of " + type);
         });
     }
 
-    /** Adds an artifact with hand-built types and members (members are attached to their declaring type). */
-    ScopedArtifact add(IndexedArtifact artifact, List<TypeDescriptor> typeDescriptors,
-            List<MemberDescriptor> memberDescriptors) {
-        IndexedArtifact saved = artifacts.save(artifact);
-        List<IndexedType> stored = types.insertAll(saved.id(), typeDescriptors);
-        Map<Long, List<MemberDescriptor>> byType = new LinkedHashMap<>();
-        for (MemberDescriptor member : memberDescriptors) {
-            IndexedType owner = stored.stream().filter(type -> type.name().equals(member.declaringType()))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("no type for " + member.reference()));
-            byType.computeIfAbsent(owner.id(), id -> new ArrayList<>()).add(member);
-        }
-        members.insertAll(byType);
-        ScopedArtifact scoped = new ScopedArtifact(saved.id(), saved.key());
+    /** The store, for indexing with T08's real indexers; call {@link #register} with the result. */
+    SqliteIndexStore store() {
+        return store;
+    }
+
+    /** Adds an artifact stored by someone else (e.g. a real indexer) to the scope. */
+    ScopedArtifact register(StoredArtifact stored) {
+        ScopedArtifact scoped = new ScopedArtifact(stored.artifact().id(), stored.artifact().key());
         scope.add(scoped);
         return scoped;
+    }
+
+    /** Adds an artifact with hand-built types and members without docs (members attach to their declaring type). */
+    ScopedArtifact add(IndexedArtifact artifact, List<TypeDescriptor> typeDescriptors,
+            List<MemberDescriptor> memberDescriptors) {
+        Map<TypeName, List<MemberDescriptor>> byType = new LinkedHashMap<>();
+        typeDescriptors.forEach(type -> byType.put(type.name(), new ArrayList<>()));
+        for (MemberDescriptor member : memberDescriptors) {
+            List<MemberDescriptor> owner = byType.get(member.declaringType());
+            if (owner == null) {
+                throw new IllegalArgumentException("no type for " + member.reference());
+            }
+            owner.add(member);
+        }
+        return add(artifact, typeDescriptors.stream()
+                .map(type -> TypeEntry.undocumented(type, byType.get(type.name())))
+                .toList(), Map.of());
+    }
+
+    /** Adds an artifact with types, members and docs, plus package docs, as the indexer stores them. */
+    ScopedArtifact add(IndexedArtifact artifact, List<TypeEntry> entries, Map<String, RenderedDoc> packageDocs) {
+        return register(store.replace(artifact, sink -> {
+            sink.types(entries);
+            packageDocs.forEach(sink::packageDoc);
+        }));
     }
 
     ScopedArtifact add(String gav, List<TypeDescriptor> typeDescriptors, MemberDescriptor... memberDescriptors) {
@@ -120,14 +149,12 @@ final class LookupIndex implements AutoCloseable {
         Path jar = writeJar(key.keyString().replace(':', '_') + (docSource == DocSource.JDK ? "-src.zip"
                 : "-sources.jar"), prefix, sources);
         List<ParsedSourceFile> files = parseAll(prefix, sources, docSource);
-        List<TypeDescriptor> typeDescriptors = new ArrayList<>();
-        List<MemberDescriptor> memberDescriptors = new ArrayList<>();
+        List<TypeEntry> entries = new ArrayList<>();
+        Map<String, RenderedDoc> packageDocs = new LinkedHashMap<>();
         for (ParsedSourceFile file : files) {
+            file.packageDoc().filter(doc -> !doc.isEmpty()).ifPresent(doc -> packageDocs.put(file.packageName(), doc));
             for (ParsedType type : file.types()) {
-                typeDescriptors.add(type.descriptor());
-                type.members().stream().map(ParsedMember::descriptor)
-                        .filter(member -> member.visibility().isApi())
-                        .forEach(memberDescriptors::add);
+                entries.add(entry(type));
             }
         }
         IndexedArtifact.IndexedArtifactBuilder artifact = artifact(key).toBuilder();
@@ -136,7 +163,15 @@ final class LookupIndex implements AutoCloseable {
         } else {
             artifact.sourcesJar(Optional.of(jar));
         }
-        return add(artifact.build(), typeDescriptors, memberDescriptors);
+        return add(artifact.build(), entries, packageDocs);
+    }
+
+    /** A parsed type as the indexer stores it: its doc and its API members with their docs. */
+    static TypeEntry entry(ParsedType type) {
+        return new TypeEntry(type.descriptor(), type.doc(), type.members().stream()
+                .filter(member -> member.descriptor().visibility().isApi())
+                .map(member -> new MemberEntry(member.descriptor(), member.doc()))
+                .toList());
     }
 
     /** {@link #addSources} for a Maven artifact's sources jar. */

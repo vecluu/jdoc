@@ -20,6 +20,13 @@ final class MapJavadocArchive implements JavadocArchive {
         return this;
     }
 
+    /** Adds a {@code package-summary.html} with a package description. */
+    MapJavadocArchive withPackagePage(String path, String description) {
+        pages.put(path, "<html><body><section class=\"package-description\"><div class=\"block\">" + description
+                + "</div></section></body></html>");
+        return this;
+    }
+
     @Override
     public Optional<String> page(String entryPath) {
         return Optional.ofNullable(pages.get(entryPath));

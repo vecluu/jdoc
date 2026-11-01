@@ -8,6 +8,7 @@ import io.github.vecluu.jdoc.config.JdkInfo;
 import io.github.vecluu.jdoc.config.JdkInfoReader;
 import io.github.vecluu.jdoc.index.IndexDatabase;
 import io.github.vecluu.jdoc.index.JdbcArtifactRepository;
+import io.github.vecluu.jdoc.index.JdbcDocRepository;
 import io.github.vecluu.jdoc.index.JdbcFailedArtifactRepository;
 import io.github.vecluu.jdoc.index.JdbcMemberRepository;
 import io.github.vecluu.jdoc.index.JdbcTypeRepository;
@@ -44,7 +45,7 @@ class JdkFindIT {
             JdbcTypeRepository types = new JdbcTypeRepository(database);
             JdbcMemberRepository members = new JdbcMemberRepository(database);
             SqliteIndexStore store = new SqliteIndexStore(database, new JdbcArtifactRepository(database), types,
-                    members, new JdbcFailedArtifactRepository(database));
+                    members, new JdbcFailedArtifactRepository(database), new JdbcDocRepository(database));
             DefaultJdkIndexer indexer = new DefaultJdkIndexer(store, JavaSourceParser::new, new ClassFileReader(),
                     new JdkPackageFilter(), DefaultJdkIndexer.defaultThreads(), Clock.systemUTC());
             StoredArtifact jdk = indexer.index(JDK, new NioFileStatter().stat(indexer.indexedFile(JDK)).orElseThrow());

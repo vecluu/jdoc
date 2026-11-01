@@ -1,6 +1,7 @@
 package io.github.vecluu.jdoc.indexer;
 
 import io.github.vecluu.jdoc.index.ArtifactRepository;
+import io.github.vecluu.jdoc.index.DocRepository;
 import io.github.vecluu.jdoc.index.FailedArtifact;
 import io.github.vecluu.jdoc.index.FailedArtifactRepository;
 import io.github.vecluu.jdoc.index.IndexDatabase;
@@ -10,6 +11,7 @@ import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.IndexedArtifact;
 import io.github.vecluu.jdoc.model.IndexedType;
 import io.github.vecluu.jdoc.model.MemberDescriptor;
+import io.github.vecluu.jdoc.model.RenderedDoc;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +19,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 
 /**
- * {@link IndexStore} on T03's repositories. Like the {@link IndexDatabase} it wraps, an instance must be confined to
+ * {@link IndexStore} on T03's repositories; types, members and their rendered docs are written together. Like the {@link IndexDatabase} it wraps, an instance must be confined to
  * one thread at a time.
  */
 @RequiredArgsConstructor
@@ -28,6 +30,7 @@ public final class SqliteIndexStore implements IndexStore {
     private final TypeRepository types;
     private final MemberRepository members;
     private final FailedArtifactRepository failures;
+    private final DocRepository docs;
 
     @Override
     public Optional<IndexedArtifact> find(ArtifactKey key) {
@@ -40,18 +43,34 @@ public final class SqliteIndexStore implements IndexStore {
             IndexedArtifact saved = artifacts.save(artifact);
             failures.delete(artifact.key());
             int[] counts = new int[2];
-            entries.produce(batch -> {
-                if (batch.isEmpty()) {
-                    return;
+            entries.produce(new EntrySink() {
+                @Override
+                public void types(List<TypeEntry> batch) {
+                    if (batch.isEmpty()) {
+                        return;
+                    }
+                    List<IndexedType> inserted = types.insertAll(saved.id(),
+                            batch.stream().map(TypeEntry::type).toList());
+                    Map<Long, List<MemberDescriptor>> membersByType = new LinkedHashMap<>();
+                    Map<Long, List<RenderedDoc>> memberDocsByType = new LinkedHashMap<>();
+                    Map<Long, RenderedDoc> typeDocs = new LinkedHashMap<>();
+                    for (int i = 0; i < inserted.size(); i++) {
+                        long typeId = inserted.get(i).id();
+                        TypeEntry entry = batch.get(i);
+                        membersByType.put(typeId, entry.memberDescriptors());
+                        memberDocsByType.put(typeId, entry.memberDocs());
+                        typeDocs.put(typeId, entry.doc());
+                    }
+                    counts[0] += inserted.size();
+                    counts[1] += members.insertAll(membersByType);
+                    docs.insertTypeDocs(typeDocs);
+                    docs.insertMemberDocs(memberDocsByType);
                 }
-                List<IndexedType> inserted = types.insertAll(saved.id(),
-                        batch.stream().map(TypeEntry::type).toList());
-                Map<Long, List<MemberDescriptor>> byType = new LinkedHashMap<>();
-                for (int i = 0; i < inserted.size(); i++) {
-                    byType.put(inserted.get(i).id(), batch.get(i).members());
+
+                @Override
+                public void packageDoc(String packageName, RenderedDoc doc) {
+                    docs.savePackageDoc(saved.id(), packageName, doc);
                 }
-                counts[0] += inserted.size();
-                counts[1] += members.insertAll(byType);
             });
             return new StoredArtifact(saved, counts[0], counts[1]);
         });

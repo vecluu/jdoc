@@ -5,17 +5,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.vecluu.jdoc.decompile.DecompilationException;
 import io.github.vecluu.jdoc.decompile.DecompiledSourceProvider;
-import io.github.vecluu.jdoc.javadoc.JavadocAnchor;
-import io.github.vecluu.jdoc.javadoc.JavadocMemberDoc;
-import io.github.vecluu.jdoc.javadoc.JavadocTypePage;
+import io.github.vecluu.jdoc.indexer.MemberEntry;
+import io.github.vecluu.jdoc.indexer.TypeEntry;
 import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.Gav;
 import io.github.vecluu.jdoc.model.RenderedDoc;
-import io.github.vecluu.jdoc.model.TypeName;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,12 +53,17 @@ class SourceLoaderTest {
         index.add(LookupIndex.artifact(ArtifactKey.maven(Gav.parse("com.acme:dec:1.0"))).toBuilder()
                         .javadocJar(Optional.of(tmp.resolve("dec-javadoc.jar")))
                         .build(),
-                List.of(LookupIndex.publicClass("d.Lib").toBuilder()
-                                .docSource(DocSource.JAVADOC).entryPath("d/Lib.html").build(),
-                        LookupIndex.publicClass("d.Lib$Inner"),
-                        LookupIndex.publicClass("d.Broken")),
-                List.of(method("d.Lib", "twice", "int value"), method("d.Lib", "missing"),
-                        method("d.Lib$Inner", "hello"), method("d.Broken", "boom")));
+                List.of(new TypeEntry(LookupIndex.publicClass("d.Lib").toBuilder()
+                                        .docSource(DocSource.JAVADOC).entryPath("d/Lib.html").build(),
+                                RenderedDoc.missing(), List.of(
+                                        new MemberEntry(method("d.Lib", "twice", "int value"), new RenderedDoc(
+                                                "Doubles.", "Doubles.", List.of("@param value v"), false)),
+                                        MemberEntry.undocumented(method("d.Lib", "missing")))),
+                        TypeEntry.undocumented(LookupIndex.publicClass("d.Lib$Inner"),
+                                List.of(method("d.Lib$Inner", "hello"))),
+                        TypeEntry.undocumented(LookupIndex.publicClass("d.Broken"),
+                                List.of(method("d.Broken", "boom")))),
+                Map.of());
         index.add(LookupIndex.artifact(ArtifactKey.jdk(21)),
                 List.of(LookupIndex.publicClass("java.util.NoSrc")), List.of(method("java.util.NoSrc", "x")));
         DecompiledSourceProvider decompiler = (gav, jar, type) -> {
@@ -69,11 +73,7 @@ class SourceLoaderTest {
             }
             return DECOMPILED;
         };
-        FakeJavadocDocs javadoc = new FakeJavadocDocs().page(new JavadocTypePage(TypeName.of("d.Lib"),
-                RenderedDoc.missing(), List.of(new JavadocMemberDoc(
-                        List.of(JavadocAnchor.parse("twice(int)").orElseThrow()),
-                        new RenderedDoc("Doubles.", "Doubles.", List.of("@param value v"), false)))));
-        services = index.services(javadoc, decompiler);
+        services = index.services(decompiler);
     }
 
     @AfterEach

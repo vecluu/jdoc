@@ -5,8 +5,10 @@ import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.IndexedArtifact;
 import io.github.vecluu.jdoc.model.IndexedType;
+import io.github.vecluu.jdoc.model.RenderedDoc;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +19,7 @@ final class InMemoryIndexStore implements IndexStore {
     private final Map<ArtifactKey, IndexedArtifact> artifacts = new HashMap<>();
     private final Map<Long, List<TypeEntry>> entries = new HashMap<>();
     private final Map<ArtifactKey, FailedArtifact> failures = new HashMap<>();
+    private final Map<Long, Map<String, RenderedDoc>> packageDocs = new HashMap<>();
     private long nextId = 1;
     private int replaceCalls;
 
@@ -29,13 +32,26 @@ final class InMemoryIndexStore implements IndexStore {
     public StoredArtifact replace(IndexedArtifact artifact, EntryProducer producer) {
         replaceCalls++;
         List<TypeEntry> produced = new ArrayList<>();
-        producer.produce(produced::addAll);
+        Map<String, RenderedDoc> packages = new LinkedHashMap<>();
+        producer.produce(new EntrySink() {
+            @Override
+            public void types(List<TypeEntry> batch) {
+                produced.addAll(batch);
+            }
+
+            @Override
+            public void packageDoc(String packageName, RenderedDoc doc) {
+                packages.put(packageName, doc);
+            }
+        });
         IndexedArtifact saved = artifact.toBuilder().id(nextId++).build();
         IndexedArtifact previous = artifacts.put(saved.key(), saved);
         if (previous != null) {
             entries.remove(previous.id());
+            packageDocs.remove(previous.id());
         }
         entries.put(saved.id(), List.copyOf(produced));
+        packageDocs.put(saved.id(), Map.copyOf(packages));
         failures.remove(saved.key());
         return new StoredArtifact(saved, produced.size(),
                 produced.stream().mapToInt(entry -> entry.members().size()).sum());
@@ -63,6 +79,10 @@ final class InMemoryIndexStore implements IndexStore {
 
     List<TypeEntry> entries(ArtifactKey key) {
         return find(key).map(artifact -> entries.get(artifact.id())).orElse(List.of());
+    }
+
+    Map<String, RenderedDoc> packageDocs(ArtifactKey key) {
+        return find(key).map(artifact -> packageDocs.get(artifact.id())).orElse(Map.of());
     }
 
     int replaceCalls() {

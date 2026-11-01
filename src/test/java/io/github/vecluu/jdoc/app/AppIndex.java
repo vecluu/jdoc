@@ -3,11 +3,16 @@ package io.github.vecluu.jdoc.app;
 import io.github.vecluu.jdoc.decompile.DecompiledSourceProvider;
 import io.github.vecluu.jdoc.index.IndexDatabase;
 import io.github.vecluu.jdoc.index.JdbcArtifactRepository;
+import io.github.vecluu.jdoc.index.JdbcDocRepository;
+import io.github.vecluu.jdoc.index.JdbcFailedArtifactRepository;
 import io.github.vecluu.jdoc.index.JdbcMemberRepository;
 import io.github.vecluu.jdoc.index.JdbcSupertypeRepository;
 import io.github.vecluu.jdoc.index.JdbcTypeRepository;
 import io.github.vecluu.jdoc.indexer.IndexReport;
-import io.github.vecluu.jdoc.lookup.JarJavadocDocs;
+import io.github.vecluu.jdoc.indexer.MemberEntry;
+import io.github.vecluu.jdoc.indexer.SqliteIndexStore;
+import io.github.vecluu.jdoc.indexer.StoredArtifact;
+import io.github.vecluu.jdoc.indexer.TypeEntry;
 import io.github.vecluu.jdoc.lookup.LookupScope;
 import io.github.vecluu.jdoc.lookup.LookupServices;
 import io.github.vecluu.jdoc.lookup.ScopedArtifact;
@@ -16,16 +21,13 @@ import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.Gav;
 import io.github.vecluu.jdoc.model.IndexedArtifact;
-import io.github.vecluu.jdoc.model.IndexedType;
-import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.ModuleClasspath;
+import io.github.vecluu.jdoc.model.RenderedDoc;
 import io.github.vecluu.jdoc.model.ResolutionStatus;
-import io.github.vecluu.jdoc.model.TypeDescriptor;
 import io.github.vecluu.jdoc.model.TypeName;
 import io.github.vecluu.jdoc.source.JavaSource;
 import io.github.vecluu.jdoc.source.JavaSourceParser;
 import io.github.vecluu.jdoc.source.KnownTypes;
-import io.github.vecluu.jdoc.source.ParsedMember;
 import io.github.vecluu.jdoc.source.ParsedSourceFile;
 import io.github.vecluu.jdoc.source.ParsedType;
 import io.github.vecluu.jdoc.testsupport.JarWriter;
@@ -44,8 +46,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Test helper: a real SQLite index in a temp directory filled with types parsed (T04) from hand-written sources, and
- * a {@link ModuleContext} fake that hands out sessions on it, so app services are tested without Maven or indexing.
+ * Test helper: a real SQLite index in a temp directory filled (through T08's store, docs included) with types parsed
+ * (T04) from hand-written sources, and a {@link ModuleContext} fake that hands out sessions on it, so app services are
+ * tested without Maven or indexing.
  */
 final class AppIndex implements AutoCloseable {
 
@@ -55,6 +58,8 @@ final class AppIndex implements AutoCloseable {
     private final JdbcTypeRepository types;
     private final JdbcSupertypeRepository supertypes;
     private final JdbcMemberRepository members;
+    private final JdbcDocRepository docs;
+    private final SqliteIndexStore store;
     private final List<ScopedArtifact> scope = new ArrayList<>();
 
     private AppIndex(Path directory) {
@@ -64,6 +69,9 @@ final class AppIndex implements AutoCloseable {
         this.types = new JdbcTypeRepository(database);
         this.supertypes = new JdbcSupertypeRepository(database);
         this.members = new JdbcMemberRepository(database);
+        this.docs = new JdbcDocRepository(database);
+        this.store = new SqliteIndexStore(database, artifacts, types, members,
+                new JdbcFailedArtifactRepository(database), docs);
     }
 
     /** An index with {@link AppSources#jdk()} and {@link AppSources#library()} (classpath order: JDK first). */
@@ -102,21 +110,22 @@ final class AppIndex implements AutoCloseable {
         DecompiledSourceProvider noDecompiler = (gav, jar, type) -> {
             throw new AssertionError("unexpected decompile of " + type);
         };
-        return LookupServices.create(artifacts, types, supertypes, members, new ZipJarEntryReader(),
-                new JarJavadocDocs(), noDecompiler);
+        return LookupServices.create(artifacts, types, supertypes, members, docs, new ZipJarEntryReader(),
+                noDecompiler);
     }
 
     private ScopedArtifact add(ArtifactKey key, DocSource docSource, String prefix, Map<String, String> sources) {
         Path jar = writeJar(key.keyString().replace(':', '_') + (docSource == DocSource.JDK ? "-src.zip"
                 : "-sources.jar"), prefix, sources);
-        List<TypeDescriptor> typeDescriptors = new ArrayList<>();
-        List<MemberDescriptor> memberDescriptors = new ArrayList<>();
+        List<TypeEntry> entries = new ArrayList<>();
+        Map<String, RenderedDoc> packageDocs = new LinkedHashMap<>();
         for (ParsedSourceFile file : parse(prefix, sources, docSource)) {
+            file.packageDoc().filter(doc -> !doc.isEmpty()).ifPresent(doc -> packageDocs.put(file.packageName(), doc));
             for (ParsedType type : file.types()) {
-                typeDescriptors.add(type.descriptor());
-                type.members().stream().map(ParsedMember::descriptor)
-                        .filter(member -> member.visibility().isApi())
-                        .forEach(memberDescriptors::add);
+                entries.add(new TypeEntry(type.descriptor(), type.doc(), type.members().stream()
+                        .filter(member -> member.descriptor().visibility().isApi())
+                        .map(member -> new MemberEntry(member.descriptor(), member.doc()))
+                        .toList()));
             }
         }
         IndexedArtifact.IndexedArtifactBuilder artifact = IndexedArtifact.builder()
@@ -128,15 +137,11 @@ final class AppIndex implements AutoCloseable {
         if (docSource == DocSource.SOURCES) {
             artifact.sourcesJar(Optional.of(jar));
         }
-        IndexedArtifact saved = artifacts.save(artifact.build());
-        List<IndexedType> stored = types.insertAll(saved.id(), typeDescriptors);
-        Map<Long, List<MemberDescriptor>> byType = new LinkedHashMap<>();
-        for (MemberDescriptor member : memberDescriptors) {
-            IndexedType owner = stored.stream().filter(type -> type.name().equals(member.declaringType()))
-                    .findFirst().orElseThrow();
-            byType.computeIfAbsent(owner.id(), id -> new ArrayList<>()).add(member);
-        }
-        members.insertAll(byType);
+        StoredArtifact stored = store.replace(artifact.build(), sink -> {
+            sink.types(entries);
+            packageDocs.forEach(sink::packageDoc);
+        });
+        IndexedArtifact saved = stored.artifact();
         ScopedArtifact scoped = new ScopedArtifact(saved.id(), saved.key());
         scope.add(scoped);
         return scoped;

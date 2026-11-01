@@ -2,12 +2,14 @@ package io.github.vecluu.jdoc.lookup;
 
 import io.github.vecluu.jdoc.decompile.DecompiledSourceProvider;
 import io.github.vecluu.jdoc.index.ArtifactRepository;
+import io.github.vecluu.jdoc.index.DocRepository;
 import io.github.vecluu.jdoc.index.MemberRepository;
 import io.github.vecluu.jdoc.index.SupertypeRepository;
 import io.github.vecluu.jdoc.index.TypeRepository;
 
 /**
- * All lookup services of one call, wired together. Closing it releases the javac parser if one was created.
+ * All lookup services of one call, wired together. Closing it releases the javac parser if one was created. Only
+ * {@link #sources()} ({@code jdoc source}) parses Java source or decompiles; every other service reads the index only.
  *
  * @param types        scoped type access and API visibility
  * @param typeResolver {@code <type>} arguments
@@ -15,7 +17,7 @@ import io.github.vecluu.jdoc.index.TypeRepository;
  * @param typeMembers  declared and inherited members
  * @param classView    {@code jdoc class}
  * @param memberLookup {@code jdoc method} / {@code jdoc source} targets
- * @param docs         on-demand docs
+ * @param docs         docs stored in the index, with inheritance resolved
  * @param sources      on-demand member source ({@code jdoc source})
  * @param find         {@code jdoc find}
  * @param memberSearch {@code jdoc member}
@@ -39,17 +41,17 @@ public record LookupServices(
     /**
      * Wires every service from the index repositories and the jar boundaries.
      *
-     * @param jarEntries  reads source entries (normally {@link ZipJarEntryReader})
-     * @param javadoc     reads javadoc pages (normally {@link JarJavadocDocs})
-     * @param decompiled  decompiled-source cache for {@code jdoc source} of types without sources
+     * @param docRepository rendered docs stored at index time
+     * @param jarEntries    reads source entries for {@code jdoc source} (normally {@link ZipJarEntryReader})
+     * @param decompiled    decompiled-source cache for {@code jdoc source} of types without sources
      */
     public static LookupServices create(
             ArtifactRepository artifactRepository,
             TypeRepository typeRepository,
             SupertypeRepository supertypeRepository,
             MemberRepository memberRepository,
+            DocRepository docRepository,
             JarEntryReader jarEntries,
-            JavadocDocs javadoc,
             DecompiledSourceProvider decompiled) {
         ScopedTypes types = new ScopedTypes(typeRepository);
         TypeResolver resolver = new TypeResolver(types);
@@ -58,7 +60,7 @@ public record LookupServices(
         TypeMembers typeMembers = new TypeMembers(memberRepository, hierarchy, overrides);
         ArtifactFiles artifactFiles = new ArtifactFiles(artifactRepository);
         SourceFiles sourceFiles = new SourceFiles(jarEntries);
-        DocLoader docs = new DocLoader(artifactFiles, sourceFiles, javadoc, hierarchy, memberRepository, overrides);
+        DocLoader docs = new DocLoader(docRepository, hierarchy, memberRepository, overrides);
         return new LookupServices(
                 types,
                 resolver,

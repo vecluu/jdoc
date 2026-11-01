@@ -21,8 +21,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * End-to-end lookups over the real sample library ({@link SampleLibrary#mixed()}: sources, javadoc-only and
- * decompiled types) plus a mini JDK {@code src.zip}, indexed through T04/T05 into a real SQLite index, with real
- * javadoc jar reading and real Vineflower for {@code jdoc source}.
+ * decompiled types) indexed by T08's real jar indexer (docs stored in the index) plus a mini JDK {@code src.zip}, with
+ * real Vineflower for {@code jdoc source}.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class LookupIT {
@@ -39,7 +39,7 @@ class LookupIT {
         index.addSources(ArtifactKey.jdk(25), DocSource.JDK, "java.base/", SampleSources.jdk());
         SampleLibraryIndexer.index(index, library);
         cache = new CachePaths(tmp.resolve("cache"));
-        services = index.services(new JarJavadocDocs(), new DecompiledSourceCache(cache, new VineflowerDecompiler()));
+        services = index.services(new DecompiledSourceCache(cache, new VineflowerDecompiler()));
         scope = index.scope();
     }
 

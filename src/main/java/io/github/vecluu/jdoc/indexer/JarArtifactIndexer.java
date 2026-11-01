@@ -18,15 +18,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * {@link ArtifactIndexer} for jar artifacts: the binary jar lists what exists (every named type, package-private
- * ones too); each top-level type then takes the best doc source available ({@link TypeDocResolver}). Types are
- * written in batches inside one transaction.
+ * ones too); each top-level type then takes the best doc source available ({@link TypeDocResolver}), and each
+ * package its {@code package-info.java} or {@code package-summary.html} doc. Types, members and their rendered docs
+ * are written in batches inside one transaction.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -70,7 +72,7 @@ public final class JarArtifactIndexer implements ArtifactIndexer {
     }
 
     private void produce(Map<TypeName, List<ScannedClass>> groups, KnownTypes knownTypes, DocJars located,
-                         Consumer<List<TypeEntry>> sink) {
+                         EntrySink sink) {
         try (Resources resources = new Resources()) {
             Optional<SourceArchive> sources = located.sourcesJar().map(archives::openSources);
             sources.ifPresent(resources::register);
@@ -81,14 +83,19 @@ public final class JarArtifactIndexer implements ArtifactIndexer {
             TypeDocResolver resolver = new TypeDocResolver(sourceFiles,
                     javadoc.map(pages -> new JavadocJarReader(pages, pageParser)));
             List<TypeEntry> batch = new ArrayList<>();
+            Set<String> packages = new TreeSet<>();
             for (Map.Entry<TypeName, List<ScannedClass>> group : groups.entrySet()) {
+                packages.add(group.getKey().packageName());
                 batch.addAll(resolver.resolve(group.getKey(), group.getValue()));
                 if (batch.size() >= BATCH_SIZE) {
-                    sink.accept(List.copyOf(batch));
+                    sink.types(List.copyOf(batch));
                     batch.clear();
                 }
             }
-            sink.accept(List.copyOf(batch));
+            sink.types(List.copyOf(batch));
+            for (String packageName : packages) {
+                resolver.packageDoc(packageName).ifPresent(doc -> sink.packageDoc(packageName, doc));
+            }
         }
     }
 

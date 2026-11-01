@@ -28,7 +28,14 @@ public final class SourceFiles implements AutoCloseable {
 
     /** Reads entries with {@code reader} and parses with a default {@link JavaSourceParser}. */
     public SourceFiles(JarEntryReader reader) {
-        this(reader, JavaSourceParser::new);
+        // An anonymous class: a constructor reference or a lambda (whose method returns JavaSourceParser) would load
+        // the parser class on every call, although only jdoc source parses.
+        this(reader, new Supplier<>() {
+            @Override
+            public JavaSourceParser get() {
+                return new JavaSourceParser();
+            }
+        });
     }
 
     /**

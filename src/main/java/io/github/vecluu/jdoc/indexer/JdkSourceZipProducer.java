@@ -3,11 +3,9 @@ package io.github.vecluu.jdoc.indexer;
 import io.github.vecluu.jdoc.error.IndexException;
 import io.github.vecluu.jdoc.error.JarReadException;
 import io.github.vecluu.jdoc.model.DocSource;
-import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.TypeName;
 import io.github.vecluu.jdoc.source.JavaSourceParser;
 import io.github.vecluu.jdoc.source.KnownTypes;
-import io.github.vecluu.jdoc.source.ParsedMember;
 import io.github.vecluu.jdoc.source.ParsedSourceFile;
 import io.github.vecluu.jdoc.source.ParsedType;
 import java.nio.file.Path;
@@ -25,7 +23,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -35,7 +32,8 @@ import lombok.extern.slf4j.Slf4j;
  * Produces the JDK's types from {@code src.zip} ({@code java.base/java/util/Optional.java}, …): lists every
  * {@code .java} file first (all of them form the {@link KnownTypes}, so supertype names resolve exactly), keeps the
  * packages accepted by {@link JdkPackageFilter} (exports read from each module's {@code module-info.java}), then
- * parses them on a bounded pool of worker threads, one {@link JavaSourceParser} per worker. The calling thread
+ * parses them (and their {@code package-info.java} files, for package docs) on a bounded pool of worker threads,
+ * one {@link JavaSourceParser} per worker; each type keeps its rendered docs. The calling thread
  * receives the results and passes them to the sink, so a single thread writes to the database.
  */
 @Slf4j
@@ -62,7 +60,7 @@ final class JdkSourceZipProducer implements EntryProducer {
     }
 
     @Override
-    public void produce(Consumer<List<TypeEntry>> sink) {
+    public void produce(EntrySink sink) {
         ZipFile zip;
         try {
             zip = new ZipFile(srcZip.toFile());
@@ -99,13 +97,16 @@ final class JdkSourceZipProducer implements EntryProducer {
             String module = moduleOf(name, modules);
             String relative = module.isEmpty() ? name : name.substring(module.length() + 1);
             String fileName = relative.substring(relative.lastIndexOf('/') + 1);
-            if (fileName.equals(MODULE_INFO) || fileName.equals(PACKAGE_INFO) || fileName.indexOf('-') >= 0) {
+            boolean packageInfo = fileName.equals(PACKAGE_INFO);
+            if (fileName.equals(MODULE_INFO) || (!packageInfo && fileName.indexOf('-') >= 0)) {
                 continue;
             }
             int lastSlash = relative.lastIndexOf('/');
             String packageName = lastSlash < 0 ? "" : relative.substring(0, lastSlash).replace('/', '.');
-            String simpleName = fileName.substring(0, fileName.length() - JAVA.length());
-            known.add(TypeName.of(packageName, List.of(simpleName)));
+            if (!packageInfo) {
+                String simpleName = fileName.substring(0, fileName.length() - JAVA.length());
+                known.add(TypeName.of(packageName, List.of(simpleName)));
+            }
             Optional<Set<String>> moduleExports = exports.computeIfAbsent(module, m -> exportsOf(zip, m));
             if (filter.includes(packageName, moduleExports)) {
                 files.add(name);
@@ -139,11 +140,25 @@ final class JdkSourceZipProducer implements EntryProducer {
         }
     }
 
-    /** One parsed file, or the failure that stopped a worker. */
-    private record FileResult(List<TypeEntry> entries, Optional<Throwable> failure) {
+    /** One parsed file (its types, or its package doc for {@code package-info.java}), or a worker's failure. */
+    private record FileResult(List<TypeEntry> entries, Optional<ParsedSourceFile> packageInfo,
+                              Optional<Throwable> failure) {
+
+        static FileResult parsed(Optional<ParsedSourceFile> file) {
+            boolean packageInfo = file.map(parsed -> parsed.path().endsWith("/" + PACKAGE_INFO)
+                    || parsed.path().equals(PACKAGE_INFO)).orElse(false);
+            return packageInfo
+                    ? new FileResult(List.of(), file, Optional.empty())
+                    : new FileResult(file.map(JdkSourceZipProducer::entries).orElse(List.of()), Optional.empty(),
+                            Optional.empty());
+        }
+
+        static FileResult failed(Throwable failure) {
+            return new FileResult(List.of(), Optional.empty(), Optional.of(failure));
+        }
     }
 
-    private void parseAll(ZipFile zip, Listing listing, Consumer<List<TypeEntry>> sink) {
+    private void parseAll(ZipFile zip, Listing listing, EntrySink sink) {
         KnownTypes knownTypes = KnownTypes.of(listing.knownTypes());
         List<String> files = listing.files();
         BlockingQueue<FileResult> results = new ArrayBlockingQueue<>(256);
@@ -162,13 +177,16 @@ final class JdkSourceZipProducer implements EntryProducer {
                     throw new IndexException("indexing the JDK failed: " + result.failure().get(),
                             result.failure().get());
                 }
+                result.packageInfo().ifPresent(file -> file.packageDoc()
+                        .filter(doc -> !doc.isEmpty())
+                        .ifPresent(doc -> sink.packageDoc(file.packageName(), doc)));
                 batch.addAll(result.entries());
                 if (batch.size() >= BATCH_SIZE) {
-                    sink.accept(List.copyOf(batch));
+                    sink.types(List.copyOf(batch));
                     batch.clear();
                 }
             }
-            sink.accept(List.copyOf(batch));
+            sink.types(List.copyOf(batch));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IndexException("interrupted while indexing the JDK", e);
@@ -185,20 +203,20 @@ final class JdkSourceZipProducer implements EntryProducer {
             int index;
             while (!stop.get() && (index = next.getAndIncrement()) < files.size()) {
                 String file = files.get(index);
-                List<TypeEntry> entries;
+                FileResult result;
                 try {
-                    entries = sources.parse(file).map(JdkSourceZipProducer::entries).orElse(List.of());
+                    result = FileResult.parsed(sources.parse(file));
                 } catch (RuntimeException e) {
                     log.warn("skipping {}: {}", file, e.toString());
-                    entries = List.of();
+                    result = FileResult.parsed(Optional.empty());
                 }
-                results.put(new FileResult(entries, Optional.empty()));
+                results.put(result);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (RuntimeException | Error e) {
             try {
-                results.put(new FileResult(List.of(), Optional.of(e)));
+                results.put(FileResult.failed(e));
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
             }
@@ -208,11 +226,7 @@ final class JdkSourceZipProducer implements EntryProducer {
     private static List<TypeEntry> entries(ParsedSourceFile file) {
         List<TypeEntry> entries = new ArrayList<>(file.types().size());
         for (ParsedType type : file.types()) {
-            List<MemberDescriptor> members = type.members().stream()
-                    .map(ParsedMember::descriptor)
-                    .filter(member -> member.visibility().isApi())
-                    .toList();
-            entries.add(new TypeEntry(type.descriptor(), members));
+            entries.add(new TypeEntry(type.descriptor(), type.doc(), TypeDocResolver.apiMembers(type)));
         }
         return entries;
     }

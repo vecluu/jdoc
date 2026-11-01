@@ -73,6 +73,22 @@ class JdkIndexerIT {
             assertThat(fixture.types.findByPackage("jdk.internal.misc", List.of(id))).isEmpty();
             assertThat(fixture.types.findByPackage("sun.misc", List.of(id))).isEmpty();
             assertThat(fixture.types.findByPackage("java.net.http", List.of(id))).isNotEmpty();
+
+            long optionalId = fixture.type(TypeName.of("java.util.Optional"), id).id();
+            assertThat(fixture.docs.typeDoc(optionalId)).hasValueSatisfying(doc -> {
+                assertThat(doc.firstSentence()).isEqualTo(optional.firstSentence());
+                assertThat(doc.description()).contains("value-based");
+                assertThat(doc.blockTags()).contains("@since 1.8");
+            });
+            IndexedMember orElseThrow = fixture.members(TypeName.of("java.util.Optional"), id).stream()
+                    .filter(member -> member.descriptor().signature().equals("T orElseThrow()")).findFirst()
+                    .orElseThrow();
+            assertThat(fixture.docs.memberDoc(orElseThrow.id())).hasValueSatisfying(doc -> {
+                assertThat(doc.description()).startsWith("If a value is present, returns the value");
+                assertThat(doc.blockTags()).contains("@since 10");
+            });
+            assertThat(fixture.docs.packageDoc(id, "java.util")).hasValueSatisfying(doc ->
+                    assertThat(doc.firstSentence()).contains("collections framework"));
         }
     }
 
@@ -90,6 +106,10 @@ class JdkIndexerIT {
             assertThat(fixture.members(TypeName.of("java.util.Optional"), id)).extracting(m -> m.descriptor().name())
                     .contains("of", "get", "isPresent");
             assertThat(fixture.types.findByPackage("jdk.internal.misc", List.of(id))).isEmpty();
+            assertThat(fixture.docs.typeDoc(fixture.type(TypeName.of("java.util.Optional"), id).id())).isEmpty();
+            assertThat(fixture.members(TypeName.of("java.util.Optional"), id))
+                    .allSatisfy(member -> assertThat(fixture.docs.memberDoc(member.id())).isEmpty());
+            assertThat(fixture.docs.packageDoc(id, "java.util")).isEmpty();
         }
     }
 }

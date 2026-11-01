@@ -97,8 +97,8 @@ class ClasspathIndexerTest {
     }
 
     private static TypeEntry entry(String name, DocSource docSource, Visibility visibility) {
-        return new TypeEntry(Scanned.type(name).type().toBuilder().docSource(docSource).visibility(visibility)
-                .build(), List.of());
+        return TypeEntry.undocumented(Scanned.type(name).type().toBuilder().docSource(docSource)
+                .visibility(visibility).build(), List.of());
     }
 
     private ClasspathIndexer indexer() {

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.MemberDescriptor;
+import io.github.vecluu.jdoc.model.RenderedDoc;
 import io.github.vecluu.jdoc.model.TypeName;
 import io.github.vecluu.jdoc.source.JavaSourceParser;
 import io.github.vecluu.jdoc.testsupport.JarWriter;
@@ -57,6 +58,8 @@ class JdkSourceZipProducerTest {
         files.put("java.base/java/util/Collection.java", "package java.util; public interface Collection<E> {}");
         files.put("java.base/java/util/package-info.java", "/** Utilities. */ package java.util;");
         files.put("java.base/java/hidden/Secret.java", "package java.hidden; public class Secret {}");
+        files.put("java.base/java/hidden/package-info.java", "/** Not exported. */ package java.hidden;");
+        files.put("java.base/java/lang/package-info.java", "package java.lang;");
         files.put("java.base/jdk/internal/misc/Unsafe.java", "package jdk.internal.misc; public class Unsafe {}");
         files.put("java.base/sun/misc/Helper.java", "package sun.misc; public class Helper {}");
         files.put("jdk.foo/module-info.java", "module jdk.foo { exports jdk.foo; }");
@@ -73,9 +76,23 @@ class JdkSourceZipProducerTest {
     }
 
     private Map<TypeName, TypeEntry> produce(int threads) {
+        return entries(threads, new LinkedHashMap<>());
+    }
+
+    private Map<TypeName, TypeEntry> entries(int threads, Map<String, RenderedDoc> packageDocs) {
         List<TypeEntry> entries = new ArrayList<>();
         new JdkSourceZipProducer(miniSrcZip(dir), new JdkPackageFilter(), JavaSourceParser::new, threads)
-                .produce(entries::addAll);
+                .produce(new EntrySink() {
+                    @Override
+                    public void types(List<TypeEntry> batch) {
+                        entries.addAll(batch);
+                    }
+
+                    @Override
+                    public void packageDoc(String packageName, RenderedDoc doc) {
+                        packageDocs.put(packageName, doc);
+                    }
+                });
         return entries.stream().collect(Collectors.toMap(e -> e.type().name(), e -> e));
     }
 
@@ -95,7 +112,29 @@ class JdkSourceZipProducerTest {
         assertThat(object.type().docSource()).isEqualTo(DocSource.JDK);
         assertThat(object.type().entryPath()).isEqualTo("java.base/java/lang/Object.java");
         assertThat(object.type().firstSentence()).isEqualTo("The root.");
-        assertThat(object.members()).extracting(MemberDescriptor::name).containsExactly("hashCode", "Object");
+        assertThat(object.memberDescriptors()).extracting(MemberDescriptor::name)
+                .containsExactly("hashCode", "Object");
+    }
+
+    @Test
+    void typesAndMembersKeepTheirRenderedDocs() {
+        Map<TypeName, TypeEntry> types = produce(2);
+
+        TypeEntry object = types.get(TypeName.of("java.lang.Object"));
+        assertThat(object.doc().description()).isEqualTo("The root.");
+        assertThat(object.memberDocs()).extracting(RenderedDoc::description).containsExactly("Hash.", "");
+        assertThat(types.get(TypeName.of("java.util.Bag$Entry")).doc().firstSentence()).isEqualTo("An entry.");
+        assertThat(types.get(TypeName.of("java.util.Collection")).doc()).isEqualTo(RenderedDoc.missing());
+    }
+
+    @Test
+    void packageDocsComeFromPackageInfoOfIndexedPackagesOnly() {
+        Map<String, RenderedDoc> packageDocs = new LinkedHashMap<>();
+        Map<TypeName, TypeEntry> types = entries(3, packageDocs);
+
+        assertThat(packageDocs).containsOnlyKeys("java.util");
+        assertThat(packageDocs.get("java.util").description()).isEqualTo("Utilities.");
+        assertThat(types).doesNotContainKey(TypeName.of("java.util.package-info"));
     }
 
     @Test

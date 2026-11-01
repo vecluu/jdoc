@@ -25,8 +25,9 @@ import lombok.extern.slf4j.Slf4j;
  *       (doc comment through end of body).</li>
  *   <li>{@link DocSource#JAVADOC} / {@link DocSource#DECOMPILED}: the top-level type is decompiled through the
  *       decompiled-source cache, parsed, and the member is cut from it (marked decompiled). For javadoc-jar types the
- *       rendered doc from the javadoc page is returned alongside.</li>
+ *       doc rendered from the javadoc page at index time is returned alongside.</li>
  * </ul>
+ * This is the only lookup path that parses Java source (javac) or decompiles (Vineflower).
  * Compiler-generated members (default constructors, record accessors, enum {@code values}) have no source.
  */
 @Slf4j
@@ -62,7 +63,7 @@ public final class SourceLoader {
 
     private MemberSource fromSourceText(MemberMatch member, IndexedArtifact artifact, DocSource docSource) {
         LocatedType type = member.declaringType();
-        Optional<Path> container = DocLoader.sourceContainer(artifact, docSource);
+        Optional<Path> container = sourceContainer(artifact, docSource);
         Optional<ParsedText> parsed = container.flatMap(jar ->
                 sources.parse(jar, type.descriptor().entryPath(), docSource));
         if (parsed.isEmpty()) {
@@ -100,7 +101,7 @@ public final class SourceLoader {
         Optional<ParsedType> type = parsed.file().type(name);
         Optional<ParsedMember> found = type.flatMap(parsedType -> decompiledText
                 ? byShape(parsedType, member.descriptor())
-                : DocLoader.parsedMember(parsedType, member.descriptor()));
+                : parsedMember(parsedType, member.descriptor()));
         if (found.isEmpty()) {
             return new MemberSource.Unavailable(member, member.reference() + " not found in "
                     + (decompiledText ? "decompiled source" : "source file"));
@@ -113,6 +114,33 @@ public final class SourceLoader {
                 .<MemberSource>map(code -> new MemberSource.Available(member, code, doc, decompiledText))
                 .orElseGet(() -> new MemberSource.Unavailable(member, "source range of " + member.reference()
                         + " is outside the file"));
+    }
+
+    /** The jar holding source text for a doc source: the sources jar, or {@code src.zip} for the JDK. */
+    static Optional<Path> sourceContainer(IndexedArtifact artifact, DocSource docSource) {
+        return switch (docSource) {
+            case SOURCES -> artifact.sourcesJar();
+            case JDK -> Optional.of(artifact.jarPath());
+            case JAVADOC, DECOMPILED -> Optional.empty();
+        };
+    }
+
+    /** The parsed member matching a stored descriptor: same start offset, else same kind and erased key. */
+    static Optional<ParsedMember> parsedMember(ParsedType type, MemberDescriptor member) {
+        if (member.range().isPresent()) {
+            int start = member.range().get().start();
+            Optional<ParsedMember> byOffset = type.members().stream()
+                    .filter(parsed -> parsed.descriptor().range().map(range -> range.start() == start).orElse(false))
+                    .filter(parsed -> parsed.descriptor().name().equals(member.name()))
+                    .findFirst();
+            if (byOffset.isPresent()) {
+                return byOffset;
+            }
+        }
+        return type.members().stream()
+                .filter(parsed -> parsed.descriptor().kind() == member.kind())
+                .filter(parsed -> parsed.descriptor().erasedKey().equals(member.erasedKey()))
+                .findFirst();
     }
 
     /** Decompiled text has no stored offsets: match by kind and erased key, else by a unique name and arity. */

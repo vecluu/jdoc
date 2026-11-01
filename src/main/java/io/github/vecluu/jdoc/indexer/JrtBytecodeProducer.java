@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,7 +42,7 @@ final class JrtBytecodeProducer implements EntryProducer {
     }
 
     @Override
-    public void produce(Consumer<List<TypeEntry>> sink) {
+    public void produce(EntrySink sink) {
         try (FileSystem jrt = FileSystems.newFileSystem(URI.create("jrt:/"),
                 Map.of("java.home", javaHome.toString()))) {
             for (Path module : sorted(jrt.getPath("/modules"))) {
@@ -53,11 +52,11 @@ final class JrtBytecodeProducer implements EntryProducer {
                     if (Files.isDirectory(directory)) {
                         for (Path file : sorted(directory)) {
                             read(file).ifPresent(scanned -> entries.add(
-                                    new TypeEntry(scanned.type(), scanned.members())));
+                                    TypeEntry.undocumented(scanned.type(), scanned.members())));
                         }
                     }
                 }
-                sink.accept(entries);
+                sink.types(entries);
             }
         } catch (IOException | RuntimeException e) {
             if (e instanceof JarReadException readException) {

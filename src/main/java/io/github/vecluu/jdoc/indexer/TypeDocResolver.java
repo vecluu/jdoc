@@ -4,11 +4,9 @@ import io.github.vecluu.jdoc.bytecode.ScannedClass;
 import io.github.vecluu.jdoc.javadoc.JavadocJarReader;
 import io.github.vecluu.jdoc.javadoc.JavadocTypePage;
 import io.github.vecluu.jdoc.model.DocSource;
-import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.RenderedDoc;
 import io.github.vecluu.jdoc.model.TypeDescriptor;
 import io.github.vecluu.jdoc.model.TypeName;
-import io.github.vecluu.jdoc.source.ParsedMember;
 import io.github.vecluu.jdoc.source.ParsedSourceFile;
 import io.github.vecluu.jdoc.source.ParsedType;
 import java.util.ArrayList;
@@ -21,8 +19,8 @@ import java.util.Optional;
  *   <li>the sources jar has the top-level type's {@code .java} file and the parsed file declares the type →
  *       {@link DocSource#SOURCES}: descriptors and members from source, but direct supertypes from bytecode (exact,
  *       never guessed);</li>
- *   <li>else the javadoc jar has the type's page → {@link DocSource#JAVADOC}: bytecode signatures plus first
- *       sentences from the page;</li>
+ *   <li>else the javadoc jar has the type's page → {@link DocSource#JAVADOC}: bytecode signatures plus the docs
+ *       rendered from the page;</li>
  *   <li>else {@link DocSource#DECOMPILED}: bytecode signatures, no docs.</li>
  * </ol>
  * The source file is looked up once per top-level type, so nested types follow it; a type missing from the parsed
@@ -64,16 +62,35 @@ final class TypeDocResolver {
         return result;
     }
 
+    /**
+     * The doc of a package: a non-empty package comment of {@code package-info.java} in the sources jar, else the
+     * javadoc jar's {@code package-summary.html}.
+     */
+    Optional<RenderedDoc> packageDoc(String packageName) {
+        String path = (packageName.isEmpty() ? "" : packageName.replace('.', '/') + "/") + "package-info.java";
+        Optional<RenderedDoc> fromSource = sources.flatMap(files -> files.parse(path))
+                .flatMap(ParsedSourceFile::packageDoc)
+                .filter(doc -> !doc.isEmpty());
+        if (fromSource.isPresent()) {
+            return fromSource;
+        }
+        return javadoc.flatMap(reader -> reader.packageDoc(packageName)).filter(doc -> !doc.isEmpty());
+    }
+
     private static TypeEntry fromSource(ScannedClass scanned, ParsedType source) {
         TypeDescriptor type = source.descriptor().toBuilder()
                 .supertypes(scanned.type().supertypes())
                 .docSource(DocSource.SOURCES)
                 .build();
-        List<MemberDescriptor> members = source.members().stream()
-                .map(ParsedMember::descriptor)
-                .filter(member -> member.visibility().isApi())
+        return new TypeEntry(type, source.doc(), apiMembers(source));
+    }
+
+    /** The API members of a parsed type with their docs. */
+    static List<MemberEntry> apiMembers(ParsedType source) {
+        return source.members().stream()
+                .filter(member -> member.descriptor().visibility().isApi())
+                .map(member -> new MemberEntry(member.descriptor(), member.doc()))
                 .toList();
-        return new TypeEntry(type, members);
     }
 
     private static TypeEntry fromJavadoc(ScannedClass scanned, JavadocTypePage page) {
@@ -82,15 +99,17 @@ final class TypeDocResolver {
                 .entryPath(scanned.type().name().javadocPagePath())
                 .firstSentence(page.typeDoc().firstSentence())
                 .build();
-        List<MemberDescriptor> members = scanned.members().stream()
-                .map(member -> member.toBuilder()
-                        .firstSentence(page.memberDoc(member).map(RenderedDoc::firstSentence).orElse(""))
-                        .build())
+        List<MemberEntry> members = scanned.members().stream()
+                .map(member -> {
+                    RenderedDoc doc = page.memberDoc(member).orElse(RenderedDoc.missing());
+                    return new MemberEntry(member.toBuilder().firstSentence(doc.firstSentence()).build(), doc);
+                })
                 .toList();
-        return new TypeEntry(type, members);
+        return new TypeEntry(type, page.typeDoc(), members);
     }
 
     private static TypeEntry decompiled(ScannedClass scanned) {
-        return new TypeEntry(scanned.type().toBuilder().docSource(DocSource.DECOMPILED).build(), scanned.members());
+        return TypeEntry.undocumented(scanned.type().toBuilder().docSource(DocSource.DECOMPILED).build(),
+                scanned.members());
     }
 }
