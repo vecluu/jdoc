@@ -19,7 +19,7 @@ Oct 28, 2026 · @E
 | JDK classes | Included, from the module JDK's `lib/src.zip` |
 | Library languages | Java only; .kt or .scala sources count as missing sources |
 | Visibility | public and protected |
-| Inherited members | Names grouped by declaring type |
+| Inherited members | Names grouped by declaring type; inherited protected members (incl. static) are hidden for types that cannot be subclassed (final, enum, record, sealed without a non-sealed subtype), and `jdoc method` on them exits 1 with a hint |
 | Ambiguous simple name | List candidate FQCNs, no docs |
 | Output cap | About 2,000 tokens per call, then `--page N` |
 | Refresh | Automatic on change, plus `jdoc index --force` |
