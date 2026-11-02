@@ -1,7 +1,6 @@
 package io.github.vecluu.jdoc.indexer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.vecluu.jdoc.bytecode.ScannedClass;
 import io.github.vecluu.jdoc.bytecode.ZipBinaryJarScanner;
@@ -10,6 +9,7 @@ import io.github.vecluu.jdoc.javadoc.JavadocJarReader;
 import io.github.vecluu.jdoc.javadoc.JavadocPageParser;
 import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.TypeName;
+import io.github.vecluu.jdoc.testsupport.Prerequisites;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,22 +22,25 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Parameter names from a real JDK-8-built javadoc jar (commons-lang3 3.5, HTML 4.01, legacy anchors), whose class
- * files have no {@code MethodParameters}. Uses copies of the jars from the local Maven repository; skipped when
- * they are absent (the jars are not downloaded).
+ * files have no {@code MethodParameters}. Uses copies of the jars the build copies to {@code jdoc.itFixtureJars}
+ * (failsafe), else of those in {@code ~/.m2}; skipped when they are absent, failed in CI (see {@link Prerequisites}).
  */
 class Jdk8JavadocParameterNamesIT {
 
-    private static final Path REPOSITORY = Path.of(System.getProperty("user.home"), ".m2", "repository",
-            "org", "apache", "commons", "commons-lang3", "3.5");
+    private static final Path JARS = Optional.ofNullable(System.getProperty("jdoc.itFixtureJars"))
+            .filter(value -> !value.isBlank()).map(Path::of)
+            .orElseGet(() -> Path.of(System.getProperty("user.home"), ".m2", "repository",
+                    "org", "apache", "commons", "commons-lang3", "3.5"));
 
     @TempDir
     Path tmp;
 
     @Test
     void bytecodeNamesAreReplacedByTheNamesOnTheLegacyPages() throws IOException {
-        Path binary = REPOSITORY.resolve("commons-lang3-3.5.jar");
-        Path javadoc = REPOSITORY.resolve("commons-lang3-3.5-javadoc.jar");
-        assumeTrue(Files.isRegularFile(binary) && Files.isRegularFile(javadoc), "commons-lang3 3.5 not in ~/.m2");
+        Path binary = JARS.resolve("commons-lang3-3.5.jar");
+        Path javadoc = JARS.resolve("commons-lang3-3.5-javadoc.jar");
+        Prerequisites.fromEnvironment().require(Files.isRegularFile(binary) && Files.isRegularFile(javadoc),
+                "commons-lang3 3.5 jar and javadoc jar not in " + JARS);
         Path binaryCopy = Files.copy(binary, tmp.resolve(binary.getFileName()));
         Path javadocCopy = Files.copy(javadoc, tmp.resolve(javadoc.getFileName()));
 
