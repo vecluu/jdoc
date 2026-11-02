@@ -49,6 +49,8 @@ mvn -o -q -B dependency:list \
 
 `includeScope=test` yields the full test classpath, which already contains compile, provided and runtime. Each line gives the GAV, scope and absolute jar path.
 
+For a module that depends on a sibling reactor module (or when the plain run fails and a reactor root exists), jdoc runs from the reactor root instead: `mvn -o -q -B test-compile dependency:list -Dmaven.main.skip=true -Dmaven.test.skip=true -Dmaven.resources.skip=true -pl <module> -am` with the same `-D` options. Maven 3 only resolves an uninstalled sibling once the lifecycle reaches `compile`/`test-compile`; the skip flags mean nothing is compiled and no `target/` is created, but plugins bound up to `test-compile` must be available offline. If offline Maven cannot map the `dependency:` prefix (plugin jar present, group metadata missing), jdoc retries with the fully qualified goal of the newest locally installed maven-dependency-plugin.
+
 4. **Handle failure.** If Maven fails, jdoc uses the last good list for that module and prints one warning line. With no list at all, lookups use the newest version found in the repo and mark the result `[version unresolved]`.
 5. **Skip the project's own modules.** Artifacts that belong to the current reactor are left out; the agent reads those as normal source files.
 
@@ -429,6 +431,6 @@ exec java -XX:TieredStopAtLevel=1 -jar @JAR@ "$@"
 
 Two points could change the design and need a quick test in the airgap; the third only affects fallback quality.
 
-- [ ] **Sibling modules.** Does `mvn -o dependency:list` succeed inside a submodule when its sibling modules are not installed in `~/.m2`? Maven 3 often fails there. If it does, jdoc runs from the reactor root with `-pl <module> -am` instead. Which Maven version is installed?
-- [ ] **Resolution time.** How long does `mvn -o dependency:list` take on your largest module? Over a few seconds is fine for a cache miss, but would argue for `jdoc index` in a git hook.
-- [ ] **Old javadoc jars.** How many of your javadoc-only artifacts were built with JDK 8 javadoc? Those pages get signatures but often no matched docs.
+- [x] **Sibling modules.** Answered (T19, Maven 3.10.0): `dependency:list` in a submodule fails when a sibling is not installed, and so does `-pl <module> -am` alone; the `test-compile` reactor form in step 3 works. Original question: Does `mvn -o dependency:list` succeed inside a submodule when its sibling modules are not installed in `~/.m2`? Maven 3 often fails there. If it does, jdoc runs from the reactor root with `-pl <module> -am` instead. Which Maven version is installed?
+- [x] **Resolution time.** Answered (T19): `dependency:list` takes ~1.5–1.9 s on jdoc itself and a small multi-module reactor; a cold jdoc call ~1.7–2.0 s, a cached one ~0.25 s. No git hook needed at this size. Original question: How long does `mvn -o dependency:list` take on your largest module? Over a few seconds is fine for a cache miss, but would argue for `jdoc index` in a git hook.
+- [x] **Old javadoc jars.** Answered (T19, commons-lang3 3.5 built with JDK 8 javadoc): every member's doc matched (214/214 StringUtils, 307/307 ArrayUtils); only parameter names fall back to `arg0`… (follow-up: take names from the HTML). Original question: How many of your javadoc-only artifacts were built with JDK 8 javadoc? Those pages get signatures but often no matched docs.
