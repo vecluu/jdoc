@@ -1,7 +1,7 @@
 # T20 — Project README
 
 **Owns:** `README.md` (repository root). Read-only everywhere else.
-**Depends on:** T18 (final CLI, installer, bundle and pipeline exist; read all notes).
+**Depends on:** T18, T22, T23, T24 (final CLI output, installer, bundle, pipeline and startup numbers exist; read all notes).
 **Spec:** `OUTLINE.md` (whole), `docs/ARCHITECTURE.md`, `docs/STARTUP-RESEARCH.md` "Measured", the real `jdoc --help`.
 
 ## Goal

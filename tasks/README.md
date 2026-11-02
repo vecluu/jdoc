@@ -16,7 +16,8 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | 7 | T16 Hot-path audit + benchmark harness | alone | T14, T15 |
 | 8 | T17 AOT cache, wrapper, installer · T19 Real-Maven validation · T21 License notices | yes (T17: `dist/`; T19: `module`; T21: pom, root license files, one IT) | T16; T19 needs Maven installed |
 | 9 | T18 Release packaging, smoke test, skill files, CI | alone | T17, T19 |
-| 10 | T20 Project README | alone | T18 |
+| 10 | T22 Lookup quality · T23 AOT training covers libraries · T24 Skill design | yes (T22: lookup/rendering/indexer; T23: `dist/install.sh`, training workload; T24: `dist/skill`, `dist/AGENTS-snippet.md`, one doc) | T18 |
+| 11 | T20 Project README | alone | T22, T23, T24 (captures final output, numbers and skill) |
 
 ## Status
 
@@ -38,20 +39,23 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | T14 | done | `tasks/notes/T14.md` |
 | T15 | done | `tasks/notes/T15.md` |
 | T16 | done | `tasks/notes/T16.md` |
-| T17 | done (uncommitted) | `tasks/notes/T17.md` |
-| T18 | todo | `tasks/notes/T18.md` |
-| T19 | done (uncommitted) | `tasks/notes/T19.md` |
+| T17 | done | `tasks/notes/T17.md` |
+| T18 | done | `tasks/notes/T18.md` |
+| T19 | done | `tasks/notes/T19.md` |
 | T20 | todo | `tasks/notes/T20.md` |
-| T21 | done (uncommitted) | `tasks/notes/T21.md` |
+| T21 | done | `tasks/notes/T21.md` |
+| T22 | todo | `tasks/notes/T22.md` |
+| T23 | todo | `tasks/notes/T23.md` |
+| T24 | todo | `tasks/notes/T24.md` |
 
 ## Backlog (follow-ups found during implementation; not yet scheduled)
 
-- Javadoc-only artifacts show `arg0`/`arg1` parameter names; take real names from the javadoc HTML (T05/T08 area).
-- Interface methods render with `abstract` (implicit modifier); consider omitting implicit `abstract` on interface
-  methods and `public static final` noise on interface fields in rendered signatures (T04/T05 must stay identical).
-- `jdoc find Document` ranks `javax.swing.text.Document` above jsoup's `Document`; consider preferring module
-  dependencies over JDK types at equal score.
-- Optional: installer copies LICENSE/NOTICE/THIRD-PARTY-NOTICES into the install prefix (T17 area).
+Scheduled from the backlog: T22 (parameter names, find ranking, interface noise), T23 (library AOT training, license files in the install prefix).
+
 - Fallback CDS archive only contains the classes of the call that created it (weak if that was `--version`);
   consider training it explicitly or regenerating it after a real lookup (T17 area).
-- AOT training covers JDK lookups only; library-jar indexing classes are not in the cache (T17 area).
+- CI: `RealMavenResolutionIT` is skipped in CI because the dependency plugin is not in `~/.m2` yet; add a priming
+  step before the build (T18 area).
+- The jar is not byte-reproducible: set `project.build.outputTimestamp` in the pom (from `SOURCE_DATE_EPOCH`/git).
+- The tag-only release job and its attestation step have never run; needs a decision on how to test it (a throwaway
+  pre-release tag publishes a public release).
