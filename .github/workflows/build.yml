@@ -42,9 +42,6 @@ jobs:
           java -version
           mvn -v | head -1
 
-      - name: Shellcheck
-        run: shellcheck dist/install.sh dist/bin/jdoc scripts/*.sh
-
       - name: Version from tag, else snapshot
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
@@ -53,6 +50,8 @@ jobs:
             echo "VERSION=0.0.0-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
           fi
 
+      # CI=true (set by Actions) makes a missing test prerequisite fail instead of skip: InstallerIT runs shellcheck
+      # on dist/install.sh, dist/bin/jdoc and scripts/*.sh, RealMavenResolutionIT runs the Maven of this build offline.
       - name: Build and test
         run: ./mvnw -B -ntp -Drevision="$VERSION" verify
 

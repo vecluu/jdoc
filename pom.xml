@@ -57,6 +57,7 @@
 
         <!-- plugins -->
         <compiler-plugin.version>3.14.1</compiler-plugin.version>
+        <resources-plugin.version>3.4.0</resources-plugin.version>
         <surefire.version>3.6.1</surefire.version>
         <shade-plugin.version>3.6.2</shade-plugin.version>
         <jar-plugin.version>3.4.2</jar-plugin.version>
@@ -157,6 +158,12 @@
                 </configuration>
             </plugin>
             <plugin>
+                <!-- pinned (not Maven's default) because RealMavenResolutionIT's offline project pins the same version -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>${resources-plugin.version}</version>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${surefire.version}</version>
@@ -177,6 +184,12 @@
                         <jdoc.projectRoot>${project.basedir}</jdoc.projectRoot>
                         <jdoc.shadedJar>${project.build.directory}/${project.build.finalName}.jar</jdoc.shadedJar>
                         <jdoc.runtimeDependencies>${project.build.directory}/runtime-dependencies.txt</jdoc.runtimeDependencies>
+                        <!-- RealMavenResolutionIT: the Maven running this build (also under ./mvnw, no PATH needed),
+                             its local repository (read-only tail of the offline run) and the plugins this build has
+                             resolved there, which the IT's offline project pins -->
+                        <jdoc.mavenHome>${maven.home}</jdoc.mavenHome>
+                        <jdoc.localRepository>${settings.localRepository}</jdoc.localRepository>
+                        <jdoc.offlinePlugins>maven-compiler-plugin:${compiler-plugin.version},maven-resources-plugin:${resources-plugin.version},maven-dependency-plugin:${dependency-plugin.version}</jdoc.offlinePlugins>
                     </systemPropertyVariables>
                 </configuration>
                 <executions>

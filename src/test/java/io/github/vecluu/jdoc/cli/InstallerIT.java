@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import io.github.vecluu.jdoc.model.Gav;
 import io.github.vecluu.jdoc.model.ResolvedDependency;
 import io.github.vecluu.jdoc.testsupport.FakeMavenRepo;
+import io.github.vecluu.jdoc.testsupport.Prerequisites;
 import io.github.vecluu.jdoc.testsupport.SampleLibrary;
 import io.github.vecluu.jdoc.testsupport.TestLibrary;
 import java.io.File;
@@ -31,12 +32,14 @@ import org.junit.jupiter.api.io.TempDir;
  * and runs the installed launcher: AOT cache used while its fingerprint matches (also for the first call after a
  * library is added, whose indexing and decompiling classes come from the cache because the training covered a
  * library), silent fallback to the per-user CDS archive after the jar changes, and no sqlite library extracted to the
- * temp dir per call. Linux only.
+ * temp dir per call. Linux only. Missing tools skip the tests locally and fail them in CI (see {@link Prerequisites}).
  */
 class InstallerIT {
 
     private static final String METHOD = "java.util.Optional#orElseThrow";
     private static final String CDS = "source: shared objects file";
+
+    private final Prerequisites prerequisites = Prerequisites.fromEnvironment();
 
     @TempDir
     Path tmp;
@@ -77,7 +80,7 @@ class InstallerIT {
     @Test
     void installedLauncherUsesTheAotCacheAndFallsBackSilentlyWhenTheJarChanges() throws Exception {
         assumeTrue(System.getProperty("os.name").startsWith("Linux"), "Linux only");
-        assumeTrue(onPath("bash") && onPath("stat") && onPath("od"), "bash, stat and od needed");
+        prerequisites.require(onPath("bash") && onPath("stat") && onPath("od"), "bash, stat and od needed");
         Path bundle = bundle();
 
         Run install = run(List.of("bash", bundle.resolve("install.sh").toString(), "--prefix", prefix.toString(),
@@ -195,20 +198,27 @@ class InstallerIT {
                 .contains("org.jetbrains.java.decompiler.main.Fernflower " + CDS);
     }
 
+    /** Every shipped or CI shell script: {@code dist/install.sh}, {@code dist/bin/jdoc} and {@code scripts/*.sh}. */
     @Test
     void scriptsAreShellcheckClean() throws Exception {
-        assumeTrue(onPath("shellcheck"), "shellcheck not installed");
-        Path dist = Path.of(System.getProperty("user.dir"), "dist");
-        Run check = run(List.of("shellcheck", dist.resolve("install.sh").toString(),
-                dist.resolve("bin/jdoc").toString()), Map.of());
+        prerequisites.require(onPath("shellcheck"), "shellcheck not installed");
+        Path root = Path.of(System.getProperty("user.dir"));
+        List<String> command = new ArrayList<>(List.of("shellcheck", root.resolve("dist/install.sh").toString(),
+                root.resolve("dist/bin/jdoc").toString()));
+        try (var scripts = Files.list(root.resolve("scripts"))) {
+            scripts.filter(script -> script.getFileName().toString().endsWith(".sh")).sorted()
+                    .map(Path::toString).forEach(command::add);
+        }
+        assertThat(command).as("scripts/*.sh found").hasSizeGreaterThan(3);
+        Run check = run(command, Map.of());
         assertThat(check.code).as(check.toString()).isZero();
     }
 
     private Path bundle() throws IOException, URISyntaxException {
         Path dist = Path.of(System.getProperty("user.dir"), "dist");
         Path jar = fatJar();
-        assumeTrue(Files.isRegularFile(jar), "fat jar not built: " + jar);
-        assumeTrue(Files.isRegularFile(dist.resolve("install.sh")), "dist/install.sh not found");
+        prerequisites.require(Files.isRegularFile(jar), "fat jar not built: " + jar);
+        prerequisites.require(Files.isRegularFile(dist.resolve("install.sh")), "dist/install.sh not found");
         Path bundle = Files.createDirectories(tmp.resolve("bundle"));
         Files.createDirectories(bundle.resolve("bin"));
         Files.createDirectories(bundle.resolve("lib"));
