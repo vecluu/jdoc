@@ -37,6 +37,10 @@
 
     <properties>
         <revision>0.0.0-SNAPSHOT</revision>
+        <!-- Reproducible jar: every entry gets this timestamp. A fixed default for development builds; when
+             SOURCE_DATE_EPOCH is set (CI sets it to the commit time, scripts/assemble.sh uses the same value for the
+             tarball), the profile "source-date-epoch" below uses it instead, so one commit builds one jar. -->
+        <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- Override with -Djdoc.buildDir=... so parallel builds do not share target/ -->
@@ -315,4 +319,19 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <!-- SOURCE_DATE_EPOCH (seconds since the epoch) sets the jar entry timestamps -->
+            <id>source-date-epoch</id>
+            <activation>
+                <property>
+                    <name>env.SOURCE_DATE_EPOCH</name>
+                </property>
+            </activation>
+            <properties>
+                <project.build.outputTimestamp>${env.SOURCE_DATE_EPOCH}</project.build.outputTimestamp>
+            </properties>
+        </profile>
+    </profiles>
 </project>
