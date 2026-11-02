@@ -22,7 +22,7 @@ final class DocReferences {
      * the orchestrator's local files and is ignored by git, so it never exists in a clean checkout.
      */
     static final Set<String> ROOT_DIRECTORIES =
-            Set.of("src", "docs", "dist", "scripts", "it", ".github", ".mvn");
+            Set.of("src", "docs", "dist", "scripts", "it", ".github", ".mvn", ".claude");
 
     /** Files at the repository root that a span may name without a directory (besides upper-case {@code *.md}). */
     static final Set<String> ROOT_FILES = Set.of("pom.xml", "mvnw");

@@ -63,7 +63,8 @@ class DocReferencesIT {
     /** The doc whose type references are checked. Paths are checked in it plus {@link #PATH_ONLY_DOCS}. */
     private static final String ARCHITECTURE = "docs/ARCHITECTURE.md";
     private static final List<String> PATH_ONLY_DOCS =
-            List.of("CLAUDE.md", "docs/SPEC.md", "docs/RELEASING.md", "docs/AGENT_GUIDE.md", "docs/TASK_TEMPLATE.md");
+            List.of("CLAUDE.md", "docs/SPEC.md", "docs/RELEASING.md", "docs/AGENT_GUIDE.md", "docs/TASK_TEMPLATE.md",
+                    ".claude/skills/orchestrate/SKILL.md");
 
     private static final String BASE_PATH = "io/github/vecluu/jdoc";
     private static final List<String> SOURCE_ROOTS = List.of("src/main/java", "src/test/java");
