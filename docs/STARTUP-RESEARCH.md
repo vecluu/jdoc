@@ -418,6 +418,58 @@ Verified while building the wrapper (JDK 25.0.5):
   moves it in place. `-Djdoc.aotTraining=...` at training time does not stop the cache matching runtime calls.
 - Java's temp dir ignores `TMPDIR`; with the wrapper nothing appears in `java.io.tmpdir` per call.
 
+## Measured (T23, training covers library indexing)
+
+Before T23 the training workload only looked up JDK types, so the code that indexes a newly added library jar
+(ASM scan, sources-jar parse, javadoc HTML via jsoup) and Vineflower ran cold on the first call after a dependency
+was added or bumped. `dist/install.sh` now first runs `io.github.vecluu.jdoc.cli.TrainingLibrary` in its own,
+non-recording JVM (javac + javadoc in-process, ~1 s): it writes a tiny library in three flavours (sources jar,
+javadoc jar only, binary only; packages `jdoc.training.{sources,javadoc,binary}`) into the training repository plus
+the `dependency:list` output. The recording run then executes the JDK workload, followed by 22 calls with
+`--from ../library` in a second module: the first one resolves it and indexes the three jars lazily, the others run
+`class`, `method`, `find`, `member`, `package`, `impls`, `source` on each flavour (`source` on the binary flavour
+decompiles), and `index`. If the library cannot be generated the installer warns and trains the JDK workload only.
+
+`scripts/bench-startup.sh` gained three "first call after adding a dependency" rows (`BENCH_NEW_DEP=0` skips them):
+a different small library (`bench.fresh`, compiled once by the script with the JDK's `javac`/`javadoc`/`jar`, so not
+the training library) gets a new version before every run, declared in a second module's POM and listed by the fake
+`mvn`. Each measured call therefore re-resolves the module and indexes a jar it has never seen.
+
+Same jar for both columns (working tree with T22's in-progress changes, built 2026-11-02), installed once with the
+pre-T23 installer and once with the T23 installer; 3 interleaved rounds of `bench-startup.sh` (11 runs after 2
+warm-ups each), median of the round medians, wrapper flags + `-XX:AOTMode=on`, load ~3 (other agents building).
+
+| Command | no cache | AOT, JDK training (before) | AOT, JDK + library training (after) |
+| --- | --- | --- | --- |
+| `--version` | 38 ms | 50 ms | 55 ms |
+| `class java.util.Optional` | 169 | 92 | 97 |
+| `method java.util.Optional#orElseThrow` | 153 | 84 | 88 |
+| `find HashMap` | 185 | 109 | 116 |
+| `member orElseThrow` | 148 | 84 | 89 |
+| `source java.util.Optional#orElseThrow` | 161 | 91 | 95 |
+| new dependency with sources jar, `class` | 422 | 167 | 154 |
+| new dependency with javadoc jar only, `class` | 314 | 187 | 155 |
+| new dependency, binary only, `source` (decompiled) | 789 | 599 | 477 |
+
+| Install | before | after |
+| --- | --- | --- |
+| `install.sh` wall time (incl. training) | 6.4 s | 8.4 s (+1 s generating the library, +1 s library workload) |
+| `lib/jdoc.aot` | 37.5 MB | 43.7 MB (+16.7 %) |
+
+Findings:
+
+- The first call after adding a dependency gets 13 ms (sources), 32 ms (javadoc) and 122 ms (decompile) faster.
+  `-Xlog:class+load` on such a call: 5,378 classes from the cache, 52 not, of which 9 are ASM classes. ASM is
+  compiled for class file version 49 and the JVM refuses to archive old-version classes that were linked during
+  training (`Skipping org/objectweb/asm/...: Old class has been linked`); nothing to do short of another ASM build.
+- What remains of the new-dependency cost is execution, not class loading: with the cache, indexing the 3-type
+  library takes ~50 ms (debug log `indexed ... in 49 ms`) and re-resolving the module ~20 ms (fake `mvn` fork
+  included); Vineflower's decompile stays ~400 ms of interpreted/C1 work. The JDK 25 cache stores no compiled code.
+- Warm JDK lookups got ~4–6 ms slower in every round (and `--version` +5 ms): the cache maps 6 MB more. This is the
+  price of the gain above; trimming the decompile part of the workload would win back some of the size but give up
+  the largest gain (−122 ms). Kept as is; the cache grew well under the 30 % budget.
+- Measured on `/tmp` (tmpfs): on a disk-backed `~/.cache/jdoc` the indexing commit adds an fsync.
+
 ## Experiments (reproducible)
 
 Scratch dir: `/tmp/claude-1000/-home-rave-IdeaProjects-jdoc/fc95a69f-0953-495a-80f4-29f342833d65/scratchpad/startup/`
