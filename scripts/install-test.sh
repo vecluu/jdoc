@@ -22,7 +22,9 @@ die() {
 }
 ok() { echo "ok: $*"; }
 
-[ $# -ge 1 ] && [ $# -le 2 ] || die "usage: scripts/install-test.sh <jdoc-<version>.tar.gz> [<maven project dir>]"
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+  die "usage: scripts/install-test.sh <jdoc-<version>.tar.gz> [<maven project dir>]"
+fi
 tarball=$(realpath "$1")
 project=${2:+$(realpath "$2")}
 scripts=$(cd "$(dirname "$0")" && pwd)
@@ -30,7 +32,7 @@ scripts=$(cd "$(dirname "$0")" && pwd)
 file=$(basename "$tarball")
 name=${file%.tar.gz}
 version=${name#jdoc-}
-[ "$name" != "$file" ] && [ "$version" != "$name" ] || die "expected a file named jdoc-<version>.tar.gz"
+if [ "$name" = "$file" ] || [ "$version" = "$name" ]; then die "expected a file named jdoc-<version>.tar.gz"; fi
 started=$(date +%s)
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/jdoc-install-test.XXXXXX")
@@ -69,7 +71,7 @@ ok "tarball entries and owners"
 tar -C "$work" -xzf "$tarball"
 bundle=$work/$name
 [ "$(cat "$bundle/VERSION")" = "$version" ] || die "VERSION is '$(cat "$bundle/VERSION")', expected $version"
-[ -x "$bundle/install.sh" ] && [ -x "$bundle/bin/jdoc" ] || die "install.sh or bin/jdoc not executable"
+if [ ! -x "$bundle/install.sh" ] || [ ! -x "$bundle/bin/jdoc" ]; then die "install.sh or bin/jdoc not executable"; fi
 for f in LICENSE NOTICE THIRD-PARTY-NOTICES; do
   [ -s "$bundle/$f" ] || die "$f missing or empty at the bundle root"
 done
