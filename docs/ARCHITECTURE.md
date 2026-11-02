@@ -1,188 +1,114 @@
-# jdoc architecture and shared contracts
+# jdoc architecture
 
-This document is the contract between all implementing agents. `docs/SPEC.md` is the product spec; this file decides
-how the Java program is structured. Only the Java CLI is in scope (no CI pipeline, scripts, installer or skill files).
+How the code is built and where things are. Read this before touching code, then the area map for the packages
+you work in. What the program does and why is in `docs/SPEC.md`; this file does not repeat it.
 
-## Build and toolchain
+## Repository layout
 
-- Java 25, Maven via the wrapper: always run `./mvnw` (there is no system `mvn`).
-- Base package: `io.github.vecluu.jdoc`. Main class: `io.github.vecluu.jdoc.Main`.
-- `./mvnw verify` builds `target/jdoc.jar` (shaded fat jar) and runs unit tests (surefire, `*Test`) and integration
-  tests (failsafe, `*IT`).
-- Parallel agents must use their own build dir: `./mvnw -B -Djdoc.buildDir=target/<TASK-ID> verify`
-  (or `test -Dtest=...` for a quick loop).
-- `pom.xml` is owned by the orchestrator. Do not add dependencies. If you truly need one, stop and report it.
+```
+pom.xml                    single-module Maven build; version from ${revision}; shaded jar target/jdoc.jar
+mvnw, .mvn/                Maven wrapper (always use ./mvnw)
+src/main/java/io/github/vecluu/jdoc/   the CLI (packages below); Main.java is the entry point
+src/test/java/io/github/vecluu/jdoc/   unit tests (*Test) and ITs (*IT) per package; testsupport/ = shared fixtures
+it/sample-project/         small Maven project for the smoke and install tests
+dist/                      bin/jdoc (POSIX launcher), install.sh, skill/SKILL.md, AGENTS-snippet.md
+scripts/                   assemble.sh, smoke-test.sh, install-test.sh, bench-startup.sh, release-notes.sh
+.github/workflows/build.yml  CI and release
+docs/                      SPEC, ARCHITECTURE, RELEASING, codemap/ (area maps), decisions/ (rationale records)
+tasks/                     orchestration: board and backlog, agent guide, brief template, briefs in flight
+```
 
-### Dependencies (fixed)
+## Packages
+
+All below `io.github.vecluu.jdoc`. Dependencies point downwards only: nothing imports a package listed further
+down the "may depend on" chain (e.g. `index` never imports `cli`). Only the composition root in `cli` may import
+every package.
+
+| Package | Responsibility | May depend on | Area map |
+| --- | --- | --- | --- |
+| `model` | immutable domain values shared by all layers | — | `docs/codemap/foundation.md` |
+| `error` | the unchecked `JdocException` hierarchy | — | `docs/codemap/foundation.md` |
+| `config` | environment access (`JdocEnvironment`), cache path layout, JDK info | `model`, `error` | `docs/codemap/foundation.md` |
+| `query` | query syntax and pure matching (`Type#name(params)`, camel humps, overloads) | `model` | `docs/codemap/foundation.md` |
+| `text` | output primitives: pagination, token budget, columns, header line | `model` | `docs/codemap/foundation.md` |
+| `module` | find the module, POM key and snapshots, run Maven, `deps.txt`, fallbacks | `config`, `model`, `error` | `docs/codemap/resolution-and-index.md` |
+| `index` | SQLite schema, repositories, inter-process lock; the only package with SQL | `config`, `model`, `error` | `docs/codemap/resolution-and-index.md` |
+| `javadoc` | Javadoc (doc comments and HTML pages) to compact plain text | `model`, `error` | `docs/codemap/indexing.md` |
+| `source` | javac Tree API parsing of `.java` text into descriptors, signature rendering | `model`, `javadoc`, `error` | `docs/codemap/indexing.md` |
+| `bytecode` | ASM reading of binary jars and class files | `model`, `error` | `docs/codemap/indexing.md` |
+| `decompile` | Vineflower wrapper and decompiled-source cache | `config`, `model`, `error` | `docs/codemap/indexing.md` |
+| `indexer` | lazy/forced indexing of artifacts and the JDK, per-type doc-source fallback, refresh | everything above except `query`, `text` | `docs/codemap/indexing.md` |
+| `lookup` | read side: type resolution, hierarchy, find, impls, members, docs, on-demand source | `index`, `source`, `decompile`, `query`, `model`, `error` (also allowed: `javadoc`, `bytecode`, `config`) | `docs/codemap/lookup-and-cli.md` |
+| `app` | one application service per command, producing a `CommandResult` | all of the above | `docs/codemap/lookup-and-cli.md` |
+| `cli` | hand-written parser and help, exit codes, printing, composition root, AOT training entry points | `app`, `config`, `text`; `CompositionRoot` anything | `docs/codemap/lookup-and-cli.md`, training in `docs/codemap/build-and-delivery.md` |
+
+Build, delivery, CI and `testsupport`: `docs/codemap/build-and-delivery.md`.
+
+## Rules
+
+- **Object-oriented design.** Single responsibility, small classes, interfaces at component boundaries (anything that
+  touches the filesystem, a process, the database or a jar), constructor injection, composition over inheritance.
+  No service locators, static mutable state or singletons. Only `cli.CompositionRoot` wires concrete classes.
+- **Immutability.** Domain values are records (or Lombok `@Value`) with defensively copied, unmodifiable collections.
+  Public methods return `Optional`, never `null`.
+- **Lombok** where it removes noise (`@RequiredArgsConstructor`, `@Slf4j`, `@Builder`, `@Value`). No `@Data` on
+  values, no `@SneakyThrows`, no Lombok `val`/`var`.
+- **stdout is the product.** Only `cli` writes to `System.out`. Everything else logs with slf4j to stderr, mostly at
+  `debug`/`warn`; the default level is `warn`.
+- **Errors.** Checked I/O and SQL exceptions are wrapped in the `error` hierarchy at component boundaries (the one
+  exception outside it is `decompile.DecompilationException`). Expected outcomes (not found, ambiguous) are values.
+- **Environment.** Only `config` reads `System.getenv`, `user.home` or the working directory; everything else gets a
+  `JdocEnvironment`, so tests can point cache, repository, `JAVA_HOME` and Maven at temp directories.
+- **Hot path.** Lookups (every command except `source` of a type without source text) must not load javac, jsoup, ASM
+  or Vineflower; `HotPathClassLoadingIT` enforces it. Indexing components are created lazily.
+- **Index format.** Anything that changes what is stored bumps `index.Schema.VERSION` (old indexes are dropped and
+  rebuilt); anything that changes the POM analysis bumps `module.ModuleSnapshotCodec.FORMAT_VERSION`.
+- **Javadoc** on every public type and non-obvious public method. No commented-out code, no stray TODOs.
+- Linux only, UTF-8 everywhere. Base package `io.github.vecluu.jdoc`, main class `io.github.vecluu.jdoc.Main`.
+
+## Dependencies
+
+Fixed; `pom.xml` changes go through the orchestrator. A new runtime dependency also needs a `THIRD-PARTY-NOTICES`
+section and `LicenseNoticesIT.OWNERS` entries (`docs/decisions/licensing.md`).
 
 | Dependency | Use |
 | --- | --- |
-| `jdk.compiler` (JDK) | javac Tree API: parse only (`JavacTask.parse()`), `DocTrees` for Javadoc. No attribution. |
-| `java.xml` (JDK) | Reading POM files (DOM). No Maven model library. |
-| sqlite-jdbc | Index database |
-| jsoup | Javadoc-jar HTML |
-| ASM (`org.ow2.asm:asm`) | Binary class files: type list, signatures, supertypes |
-| Vineflower | Last-resort decompiling |
-| (none) | CLI parsing and `--help` are hand-written in `cli` (picocli dropped in T14: startup cost, not AOT-cacheable) |
-| slf4j-api + slf4j-simple | Logging, to **stderr only** |
-| Lombok (provided) | Boilerplate reduction |
-| JUnit Jupiter 6, AssertJ (test) | Tests. No Mockito: use hand-written fakes behind interfaces. |
-
-## Package layout
-
-All packages are below `io.github.vecluu.jdoc`. Each package has one owning task (see `tasks/README.md`).
-Arrows show allowed dependencies; nothing may depend "upwards" (e.g. `index` must not import `cli`).
-
-| Package | Owner | Responsibility | May depend on |
-| --- | --- | --- | --- |
-| `config` | T01 | Environment access and cache path layout | `model`, `error` |
-| `model` | T01 | Immutable domain values shared by all layers | — |
-| `error` | T01 | `JdocException` hierarchy | `model` |
-| `module` | T02 | Find module, POM key, run Maven, parse `deps.txt`, meta cache, reactor detection, fallbacks | `config`, `model`, `error` |
-| `index` | T03 | SQLite schema, repositories, file lock | `config`, `model`, `error` |
-| `source` | T04 | javac Tree API parsing of `.java` text into model descriptors, signature rendering | `model`, `javadoc`, `error` |
-| `javadoc` | T01 (shared text rules) · T04 (doc comments) · T05 (HTML pages) | Javadoc → compact plain text (`RenderedDoc`) | `model`, `error` |
-| `bytecode` | T05 | ASM reading of binary jars and class files | `model`, `error` |
-| `decompile` | T06 | Vineflower wrapper and decompiled-source cache | `config`, `model`, `error` |
-| `text` | T07 | Output primitives: pagination, token budget, column alignment, header line | `model` |
-| `query` | T07 | Query syntax and pure matching: `Type#name(params)` parsing, camel humps, overload matching | `model` |
-| `indexer` | T08 | Lazy/forced indexing of artifacts and the JDK, per-type doc-source fallback, refresh | everything above except `query`, `text` |
-| `lookup` | T09 | Read-side services: type resolution, hierarchy, find, impls, member search, docs from the index (inheritance resolved at lookup time), on-demand source | `index`, `source`, `javadoc`, `bytecode`, `decompile`, `query`, `model`, `config`, `error` |
-| `app` | T10 | One application service per command, producing `CommandResult` | all of the above |
-| `cli` | T10, T14 | hand-written command-line parser and help, exit codes, composition root | `app`, `config`, `text`; the composition root may import every package |
-
-## Cross-cutting rules
-
-- **Object-oriented design.** Single responsibility, small focused classes, interfaces at component boundaries
-  (anything that touches the filesystem, a process, the database or a jar gets an interface so callers can be tested
-  with fakes). Constructor injection only; no service locators, no static mutable state, no singletons. The only
-  place that wires concrete classes together is the composition root in `cli` (T10).
-- **Immutability.** Domain values are Java `record`s (or Lombok `@Value`). Collections in values are defensively
-  copied and unmodifiable. Use `Optional` for absent return values, never return `null` from public methods.
-- **Lombok.** Use where it removes noise: `@RequiredArgsConstructor` for services, `@Slf4j` for logging,
-  `@Builder` for values with many fields, `@Value`/`@Getter` as needed. Do not use `@Data` on domain values,
-  `@SneakyThrows`, or `val`/`var` from Lombok.
-- **stdout is the product.** Only the `cli` layer writes to `System.out`. Everything else logs via slf4j (stderr).
-  Default log level is `warn`; never log at info/debug in a way that would show without `-Dorg.slf4j.simpleLogger...`.
-- **Errors.** Checked I/O and SQL exceptions are wrapped in the `JdocException` hierarchy at component boundaries.
-  Expected outcomes (not found, ambiguous) are values, not exceptions.
-- **Environment.** Never read `System.getenv`, `user.home` or the working directory directly outside `config`.
-  Everything goes through `JdocEnvironment`, so tests can point the cache, `~/.m2`, `JAVA_HOME` and the Maven
-  executable at temp directories.
-- **Tests never touch** the real `~/.cache/jdoc` or `~/.m2`, and never need network. Use `@TempDir`.
-- **Linux only**, UTF-8 everywhere.
-
-## Configuration (`config`, T01)
-
-`JdocEnvironment` — an immutable view of the process environment, built from a `Map<String,String>` of env vars
-plus system properties, so tests can construct it freely. It exposes:
-
-| Accessor | Source | Default |
-| --- | --- | --- |
-| cache directory | `JDOC_CACHE` | `$HOME/.cache/jdoc` |
-| local Maven repository | `JDOC_M2_REPO` | `$HOME/.m2/repository` |
-| Java home | `JAVA_HOME` | `java.home` system property |
-| Maven executable | `JDOC_MVN` | `mvn` (resolved via `PATH`) |
-| working directory | `user.dir` | — |
-
-`CachePaths` — derives every path under the cache dir: `index.db`, `lock`, `modules/<key>/deps.txt`,
-`modules/<key>/meta.json`, `module-snapshots/<hash>.txt` (T16: POM analysis per module directory),
-`decompiled/<groupPath>/<artifactId>/<version>/`. It creates directories on demand.
-
-## Domain model (`model`, T01)
-
-All are immutable records/values. Names are binding; extra helper methods are welcome.
-
-| Type | Contents and rules |
-| --- | --- |
-| `Gav` | groupId, artifactId, version, optional classifier, type (default `jar`). `isSnapshot()`; `toString()` = `g:a:v`; `coordinates()` without version (`g:a`) for reactor matching. |
-| `Scope` | enum COMPILE, PROVIDED, RUNTIME, TEST, SYSTEM; parse from Maven text. |
-| `ResolvedDependency` | `Gav`, `Scope`, absolute jar `Path`. |
-| `ResolutionStatus` | enum RESOLVED, STALE (Maven failed, last good list used), UNRESOLVED (newest-in-repo guess). |
-| `ModuleClasspath` | module directory, POM key, list of `ResolvedDependency`, `ResolutionStatus`, list of warning strings. |
-| `TypeName` | the **binary name** (`java.util.Map$Entry`). Derived: `packageName()`, `simpleName()` (`Entry`), `displayName()` (`java.util.Map.Entry`), `outerName()` (optional), `topLevel()`, `sourceEntryPath()` (`java/util/Map.java`), `classEntryPath()` (`java/util/Map$Entry.class`). Factory from binary name, and from package + nested simple names. |
-| `TypeKind` | enum CLASS, INTERFACE, ENUM, RECORD, ANNOTATION; `keyword()` gives the Java keyword (`@interface` for annotations). |
-| `MemberKind` | enum METHOD, CONSTRUCTOR, FIELD, ENUM_CONSTANT. |
-| `Visibility` | enum PUBLIC, PROTECTED, PACKAGE, PRIVATE; `isApi()` is true for PUBLIC and PROTECTED. |
-| `DocSource` | enum SOURCES, JAVADOC, DECOMPILED, JDK; `headerTag()` = none, `[from javadoc jar]`, `[decompiled, no docs]`, none. |
-| `ArtifactKey` | identity of an indexed artifact: either a `Gav` or the JDK (with its feature version, e.g. `25`). `label()` = `commons-lang3 3.17.0` or `jdk 25`. |
-| `SourceRange` | start and end character offsets into the source text (body and doc comment ranges for `jdoc source`). |
-| `ParameterInfo` | parameter name, rendered type as declared (`List<String>`), erased simple type for matching (`List`; varargs as `String[]`; type variables replaced by the simple name of their first bound, else `Object`). |
-| `TypeDescriptor` | `TypeName`, `TypeKind`, `Visibility`, modifiers text (e.g. `public final`), type parameters text (`<T>` or empty), direct supertypes (list of `TypeName`, superclass first), deprecated flag, first doc sentence (may be empty), `DocSource`, entry path inside its doc-source container, optional `SourceRange` of the declaration. |
-| `MemberDescriptor` | declaring `TypeName`, name (`<init>` is **not** used: constructors use the simple type name), `MemberKind`, rendered signature (see below), list of `ParameterInfo`, `Visibility`, static flag, deprecated flag, first doc sentence, optional `SourceRange` for the whole member (doc comment through end of body) and optional `SourceRange` for the doc comment. |
-| `RenderedDoc` | plain-text main description, first sentence, ordered list of block-tag lines (`@param x ...`, `@return ...`, `@throws ...`, `@since ...`, `@deprecated ...`), and a flag `inheritsDoc` that is true when the comment is missing or contains `{@inheritDoc}` that the renderer could not resolve itself. |
-| `IndexedArtifact` | database id, `ArtifactKey`, jar path, jar mtime, jar size, sources-jar path (optional), javadoc-jar path (optional), indexed-at timestamp. |
-| `IndexedType` | database id, artifact id, plus a `TypeDescriptor`. |
-| `IndexedMember` | database id, type id, plus a `MemberDescriptor`. |
-
-### Rendered signature format
-
-One line, as the agent would write the declaration, without `public` and without annotations or bodies:
-
-- methods: `[protected ][static ][abstract |default ]<type params> ReturnType name(Type a, Type b)[ throws X, Y]`,
-  e.g. `static <T> Optional<T> of(T value)`
-- constructors: `[protected ]Optional(T value)`
-- fields: `[protected ][static ][final ]Type NAME`
-- enum constants: `NAME`
-- No implicit interface modifiers (T22): interface and annotation methods never show `abstract` (also when written),
-  interface and annotation fields never show `static final` (`MemberDescriptor.isStatic` stays true); `default` and
-  `static` interface methods keep their keyword, abstract class methods keep `abstract`. Source and bytecode
-  rendering are identical (`SampleLibraryBytecodeIT`).
-- Types use simple names as written in source (`List<String>`, `Map.Entry<K,V>`), varargs as `String...`.
-- From bytecode (no source): same format, simple names derived from descriptors/generic signatures,
-  parameter names from the MethodParameters attribute, else `arg0`, `arg1`, ...
-- JAVADOC types (bytecode + javadoc page, T22): parameter names come from the page's member signature (JDK 8 `<pre>`,
-  JDK 11+ `methodSignature`/`member-signature` layouts) when the member's section matches exactly (anchor name and
-  erased parameter types, and every shown parameter type agrees); on any mismatch the bytecode names stay. The
-  stored signature and `ParameterInfo` names are rewritten at index time.
-
-## Database (`index`, T03)
-
-SQLite file `index.db`, WAL mode, `PRAGMA user_version` for schema versioning (on mismatch: drop and rebuild).
-Tables follow `docs/SPEC.md` with these refinements:
-
-- `artifacts`: id, artifact key (unique: GAV string or `jdk:<version>`), jar path, mtime, size, sources jar,
-  javadoc jar, indexed-at.
-- `types`: id, artifact id, binary name, simple name, package, kind, visibility, modifiers, type params, deprecated,
-  first sentence, **doc source per type**, entry path, declaration offsets. Indexes on binary name, simple name
-  (case-insensitive), package.
-- `supertypes`: type id, supertype binary name. Index on supertype binary name (for `impls`).
-- `members`: id, type id, name, kind, signature, parameter list (stored as a compact text encoding), visibility,
-  static, deprecated, first sentence, member offsets, doc offsets. Index on name (case-insensitive).
-- `type_docs` (type id), `member_docs` (member id), `package_docs` (artifact id + package): the full rendered doc
-  (`RenderedDoc`: description, first sentence, block-tag lines, `inheritsDoc`) as a compact blob (varint-prefixed
-  UTF-8 strings, deflated when ≥ 160 bytes and smaller; `index.DocCodec`). Kept out of `types`/`members` so name scans
-  stay small. A missing doc is no row; decompiled types never have docs. Package docs come from `package-info.java`
-  (sources jar or `src.zip`), else `package-summary.html`.
-- Deleting an artifact cascades to its types, supertypes, members and all their docs.
-
-**Docs are stored at index time (T15, reverses the original "first sentence only, parse on demand" decision).**
-Reason: startup cost. Parsing the declaring type's source with javac and rendering javadoc HTML with jsoup on every
-`method`/`class`/`package` call loaded ~1,300 classes and cost ~130 ms (javac init) + ~35 ms (jsoup) per call, more
-than the query itself (`docs/decisions/startup.md`). Cost: the JDK index grows from ~18 MB to ~31 MB (docs deflated:
-~44 MB without compression) and indexing the JDK takes about the same time (~4 s). `{@inheritDoc}` and undocumented
-overrides are still resolved at lookup time over the stored docs, because supertypes may live in other artifacts.
-
-Every read query is scoped to a **set of artifact ids** (the current module's classpath plus the JDK).
+| `jdk.compiler` (JDK) | javac Tree API, parse only (`JavacTask.parse()`), `DocTrees` for Javadoc; no attribution |
+| `java.xml` (JDK) | POM files (DOM); no Maven model library |
+| sqlite-jdbc | the index; bundles its native libraries |
+| jsoup | javadoc-jar HTML |
+| ASM | binary class files: type list, signatures, supertypes |
+| Vineflower | last-resort decompiling |
+| slf4j-api + slf4j-simple | logging, stderr only |
+| Lombok (provided) | boilerplate |
+| JUnit Jupiter, AssertJ (test) | tests; no Mockito |
 
 ## Runtime flow (one call)
 
-1. `cli` parses arguments; composition root builds services from `JdocEnvironment` and starts opening `index.db`
-   on a background thread (sqlite-jdbc's native library and connection set-up overlap steps 1 and 2; the first query
-   waits for it).
-2. `module.ClasspathResolver` → `ModuleClasspath` (cache hit: read `deps.txt`; miss: run Maven). The POM key and the
-   reactor come from a per-module snapshot while every file the POM analysis touched keeps its stamp (size, mtime,
-   ctime, inode; T16), so an unchanged project is not parsed (no JAXP, no SHA-256).
-3. `indexer.ClasspathIndexer` ensures the JDK and every jar on the classpath is indexed and current
-   (stat mtime/size; re-index only changed jars; under the file lock).
-4. `app` service for the command uses `lookup` services scoped to those artifact ids. Every command except `source`
-   answers from SQLite alone (docs included): no javac, jsoup, ASM or Vineflower is loaded. `source` reads the jar entry
-   and cuts the member by its stored offsets when they still point at it; only otherwise (changed entry, members without
-   offsets) does it parse (javac), and types without sources are decompiled (Vineflower). The composition root creates the indexing components (ASM scanner,
-   javadoc-page parser, javac parsers) only when step 3 actually has to index something.
-5. Result is a `CommandResult` (exit code + lines); `cli` paginates with `text` and prints.
+1. `Main` → `cli.JdocCli` parses the arguments; `cli.CompositionRoot` builds the services from `JdocEnvironment` and
+   starts opening `index.db` on a background thread (the first query waits for it).
+2. `module.ClasspathResolver` → `ModuleClasspath` (cache hit: `deps.txt`; miss: Maven). The POM key and reactor come
+   from a per-module snapshot while every file the POM analysis touched keeps its stamp.
+3. `indexer.ClasspathIndexer` makes sure the JDK and every jar on the classpath is indexed and current (stat, re-index
+   only changed jars, under the file lock).
+4. The `app` service for the command asks `lookup`, scoped to those artifact ids. Every command except `source`
+   answers from SQLite alone; `source` reads the jar entry and cuts the member by its stored offsets, parsing or
+   decompiling only when needed.
+5. The `CommandResult` (exit code and lines) goes back to `cli`, which paginates with `text` and prints.
 
-## Exit codes
+Per-command chains, the indexing flow and the install-time AOT training: see the area maps.
 
-`0` found, `1` not found, `2` ambiguous (candidates printed), `3` error (e.g. failed resolution with no fallback,
-corrupt jar, unexpected exception). Exit code `3` also prints one concise error line to stderr.
+## Tests
+
+- **Unit tests** `*Test` (surefire) for every non-trivial class: normal, edge and error cases; fast (well under a
+  second each). **Integration tests** `*IT` (failsafe) for pieces combining real components, files, jars or SQLite.
+  Never start a test class name with `Test` (surefire would run a `Test...IT` as a unit test).
+- JUnit Jupiter and AssertJ. No Mockito: small hand-written fakes implementing the boundary interfaces.
+- Tests never touch the real `~/.cache/jdoc` or `~/.m2` (use `@TempDir`) and never use the network. The build itself
+  may download fixture jars (`pre-integration-test`); tests read them through failsafe system properties.
+- Real binary, sources and javadoc jars and fake Maven repositories come from the `testsupport` fixtures; extend them
+  rather than writing new builders.
+- A test that needs an external tool or file (Maven, shellcheck, fixture jars, `src.zip`) calls
+  `testsupport.Prerequisites`: it skips locally when missing and fails in CI (`CI=true`). Never a bare JUnit
+  assumption for that.
+- Tests that index the whole JDK `src.zip` are ITs only.
