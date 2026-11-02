@@ -18,6 +18,8 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | 9 | T18 Release packaging, smoke test, skill files, CI | alone | T17, T19 |
 | 10 | T22 Lookup quality · T23 AOT training covers libraries · T24 Skill design | yes (T22: lookup/rendering/indexer; T23: `dist/install.sh`, training workload; T24: `dist/skill`, `dist/AGENTS-snippet.md`, one doc) | T18 |
 | 11 | T20 Project README · T25 No skipped tests | yes (T20: `README.md` only; T25: two ITs, test config in pom, CI workflow) | T22, T23, T24 |
+| 12 | T26 Reliable training-library generation | alone | T25 |
+| 13 | T27 Release 0.1.0 (prepare; tag only after user approval) | alone | T26 |
 
 ## Status
 
@@ -42,12 +44,14 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | T17 | done | `tasks/notes/T17.md` |
 | T18 | done | `tasks/notes/T18.md` |
 | T19 | done | `tasks/notes/T19.md` |
-| T20 | done (uncommitted) | `tasks/notes/T20.md` |
+| T20 | done | `tasks/notes/T20.md` |
 | T21 | done | `tasks/notes/T21.md` |
 | T22 | done | `tasks/notes/T22.md` |
 | T23 | done | `tasks/notes/T23.md` |
 | T24 | done | `tasks/notes/T24.md` |
-| T25 | done (uncommitted) | `tasks/notes/T25.md` |
+| T25 | done | `tasks/notes/T25.md` |
+| T26 | done (uncommitted) | `tasks/notes/T26.md` |
+| T27 | todo | `tasks/notes/T27.md` |
 
 ## Backlog (follow-ups found during implementation; not yet scheduled)
 
@@ -55,6 +59,3 @@ Scheduled from the backlog: T22 (parameter names, find ranking, interface noise)
 
 - Fallback CDS archive only contains the classes of the call that created it (weak if that was `--version`);
   consider training it explicitly or regenerating it after a real lookup (T17 area).
-- The jar is not byte-reproducible: set `project.build.outputTimestamp` in the pom (from `SOURCE_DATE_EPOCH`/git).
-- The tag-only release job and its attestation step have never run; needs a decision on how to test it (a throwaway
-  pre-release tag publishes a public release).
