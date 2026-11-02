@@ -64,6 +64,7 @@ public final class MemberReferenceParser {
         if (!name.equals(INIT) && !Identifiers.isIdentifier(name)) {
             return ParseResult.failure("'" + name + "' is not a valid member name in '" + input + "'");
         }
+        // A method that happens to be named like its type's simple name is therefore read as a constructor.
         boolean constructor = name.equals(INIT) || name.equals(type.simpleName());
         String memberName = constructor ? type.simpleName() : name;
         if (open < 0) {

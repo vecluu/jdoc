@@ -21,6 +21,9 @@ import lombok.extern.slf4j.Slf4j;
  * <p>Files are written to a temporary file in the target directory and then moved into place atomically, so a
  * concurrent process either sees no file or the complete file. Two processes racing on the same type both decompile
  * and the last move wins; the content is identical because the decompiler output is deterministic.
+ *
+ * <p>A cached file is not checked against the jar: the indexer evicts an artifact's directory when it re-indexes the
+ * artifact.
  */
 @Slf4j
 @RequiredArgsConstructor

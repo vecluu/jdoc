@@ -86,6 +86,8 @@ public final class CompositionRoot {
             ClasspathIndexer indexer = new ClasspathIndexer(
                     store,
                     (gav, jar, stamp) -> jarIndexer.get().index(gav, jar, stamp),
+                    // A lambda, so the indexer always uses JdkIndexer's default indexedFile; an override in
+                    // DefaultJdkIndexer would have no effect here.
                     (jdkInfo, stamp) -> jdkIndexer.get().index(jdkInfo, stamp),
                     jdk,
                     new FileIndexLock(paths.lockFile(), FileIndexLock.DEFAULT_TIMEOUT),

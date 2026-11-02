@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
  * {@link TypeNameResolver}), type arguments separated by {@code ", "}, annotations dropped. Also computes erased
  * simple types for {@code ParameterInfo}: type arguments removed, type variables replaced by their first bound
  * (else {@code Object}).
+ *
+ * <p>Not to be confused with the {@code bytecode} package's {@code TypeRenderer}, which renders the same format from
+ * class files; a rule changed here must change there too.
  */
 final class TypeRenderer {
 

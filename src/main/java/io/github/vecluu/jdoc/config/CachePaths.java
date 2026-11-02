@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
  */
 public final class CachePaths {
 
+    /** Module keys become directory names: no separators or dots, so a key can never leave {@code modules/}. */
     private static final Pattern MODULE_KEY = Pattern.compile("[A-Za-z0-9_-]+");
 
     private final Path root;

@@ -3,7 +3,8 @@ package io.github.vecluu.jdoc.cli;
 import java.util.Optional;
 
 /**
- * One command-line option: a value option ({@code --page <n>}) or a flag ({@code --force}).
+ * One command-line option: a value option ({@code --page <n>}) or a flag ({@code --force}). A new option is also
+ * accepted by its commands in {@link JdocCommand} and read into the {@link Invocation} by {@link CommandLineParser}.
  *
  * @param name        the option name including the dashes, e.g. {@code --from}
  * @param valueLabel  the placeholder of the value in help and errors, e.g. {@code <path>}; empty for a flag

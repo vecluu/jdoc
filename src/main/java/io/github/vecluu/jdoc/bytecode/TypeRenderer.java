@@ -23,6 +23,9 @@ import java.util.stream.Collectors;
  *       arrays as {@code X[]}; type parameter bounds joined by {@code " & "}, an {@code Object} bound omitted.</li>
  * </ul>
  * Stateless.
+ *
+ * <p>Not to be confused with the {@code source} package's {@code TypeRenderer}, which renders the same format from
+ * javac trees; a rule changed here must change there too.
  */
 final class TypeRenderer {
 

@@ -25,6 +25,8 @@ final class Schema {
                 indexed_at   TEXT    NOT NULL
             )""",
             "CREATE INDEX IF NOT EXISTS artifacts_jar_path ON artifacts (jar_path)",
+            // No foreign key to artifacts (a failed artifact may never have been stored): SqliteIndexStore.replace
+            // clears an artifact's row explicitly.
             """
             CREATE TABLE IF NOT EXISTS failed_artifacts (
                 artifact_key TEXT    NOT NULL PRIMARY KEY,
@@ -54,6 +56,7 @@ final class Schema {
             )""",
             "CREATE INDEX IF NOT EXISTS types_artifact ON types (artifact_id)",
             "CREATE INDEX IF NOT EXISTS types_binary_name ON types (binary_name)",
+            // The NOCASE indexes (here and members_name) are used only by queries that say COLLATE NOCASE.
             "CREATE INDEX IF NOT EXISTS types_simple_name ON types (simple_name COLLATE NOCASE)",
             "CREATE INDEX IF NOT EXISTS types_display_name ON types (display_name)",
             "CREATE INDEX IF NOT EXISTS types_package ON types (package)",

@@ -15,6 +15,11 @@ import java.util.stream.Collectors;
  * </ul>
  * Only {@code protected} is shown as an access modifier. Implicit interface modifiers are left out by the caller:
  * no {@code abstract} on interface or annotation methods, no {@code static final} on interface fields.
+ *
+ * <p>Signatures are rendered twice and stored: here (with {@code CompilationUnitExtractor}) for source text, and in
+ * {@code bytecode.MemberDescriptorFactory} and {@code bytecode.TypeDescriptorFactory} for class files. A rule
+ * changed here must change there too, or types indexed from javadoc jars or bytecode differ from types indexed from
+ * sources; and since the result is stored, it bumps {@code index.Schema.VERSION}.
  */
 final class SignatureFormat {
 

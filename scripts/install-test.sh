@@ -89,6 +89,7 @@ bash "$bundle/install.sh" --prefix "$prefix" --bindir "$bindir" --skills-dir "$s
     die "install.sh failed"
   }
 t1=$(date +%s)
+# Any warning fails, so a generator or training fallback fails CI although users would still get a working install.
 grep -q 'warning' "$work/install.log" && {
   cat "$work/install.log" >&2
   die "install.sh printed a warning"

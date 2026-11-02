@@ -22,6 +22,9 @@ import java.util.Set;
  * </ol>
  * A {@code $} always separates nested types (with the same rule as {@link TypeName}: only between two non-empty
  * pieces), so packages must end before it.
+ *
+ * <p>The resolver ({@code lookup.TypeResolver}) tries every exact candidate before any relative one, so this order
+ * only matters within each kind.
  */
 public final class TypeReferenceParser {
 

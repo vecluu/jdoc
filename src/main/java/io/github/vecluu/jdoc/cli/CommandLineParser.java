@@ -14,7 +14,9 @@ import java.util.Optional;
  * <p>Options may come before or after the argument, as {@code --page 2} or {@code --page=2}; flags take no value
  * ({@code --force}, or explicitly {@code --force=true}); {@code --} ends the options so that an argument may start
  * with a dash. {@code -h}/{@code --help} and {@code -V}/{@code --version} are accepted at the top level and after a
- * command. Anything else is a {@link UsageException} naming the offending argument.
+ * command. Anything else is a {@link UsageException} naming the offending argument; the messages keep the wording of
+ * the picocli parser this one replaced ({@code Unmatched argument at index ...}, {@code Missing required parameter:
+ * ...}), and tests assert it.
  */
 final class CommandLineParser {
 

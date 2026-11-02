@@ -27,6 +27,9 @@ import org.objectweb.asm.Opcodes;
  * {@code abstract} on interface and annotation methods (it stays on abstract class methods), {@code default} for
  * interface instance methods with a body, {@code static} for static interface methods, and no {@code static final}
  * on interface fields. Generic signatures are preferred; malformed ones fall back to descriptors.
+ *
+ * <p>Must render exactly as source parsing does ({@code source.SignatureFormat}); change both together and bump
+ * {@code index.Schema.VERSION}. {@code non-sealed} cannot be seen in bytecode.
  */
 final class MemberDescriptorFactory {
 

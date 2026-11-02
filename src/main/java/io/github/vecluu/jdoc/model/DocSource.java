@@ -2,7 +2,13 @@ package io.github.vecluu.jdoc.model;
 
 import java.util.Optional;
 
-/** Where a type's documentation and signatures come from (chosen per type). */
+/**
+ * Where a type's documentation and signatures come from (chosen per type).
+ *
+ * <p>Stored by name in the index. A new constant or a changed fallback order also touches the indexer's
+ * {@code TypeDocResolver}, the {@code DocSource} switches in {@code lookup.SourceLoader} and {@code lookup.DocLoader},
+ * and bumps {@code index.Schema.VERSION}.
+ */
 public enum DocSource {
     /** The artifact's {@code -sources.jar}. */
     SOURCES(null),

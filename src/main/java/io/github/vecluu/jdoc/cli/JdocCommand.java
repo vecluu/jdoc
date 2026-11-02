@@ -8,6 +8,11 @@ import java.util.Optional;
 /**
  * The eight jdoc commands: name, argument, options and help lines, and the {@link Application} call each one makes.
  * Plain data on purpose: building the command table loads no framework and runs no reflection.
+ *
+ * <p>A new command also needs a line in the training {@code workload} of {@code dist/install.sh} (so the AOT cache
+ * covers it), a row in {@code HotPathClassLoadingIT} if it is a lookup, a case in {@code EndToEndIT}, and the docs
+ * that list the commands ({@code docs/SPEC.md}, {@code README.md}, {@code dist/skill/SKILL.md},
+ * {@code dist/AGENTS-snippet.md}).
  */
 enum JdocCommand {
 

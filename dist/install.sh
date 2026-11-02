@@ -73,6 +73,7 @@ die() {
 }
 warn() { echo "install.sh: warning: $*" >&2; }
 
+# Prints lines 5-10 of the header comment: editing the header above them shifts what is printed.
 usage() { sed -n '5,10s/^# \{0,1\}//p' "$0"; }
 
 prefix=/opt/jdoc
@@ -204,6 +205,8 @@ if [ "$train" = 1 ]; then
   <version>1</version>
 </project>
 EOF
+  # jdoc runs Maven in the module directory, which is where the fake finds deps.list. The same fake is in
+  # scripts/bench-startup.sh and InstallerIT.
   cat > "$work/bin/mvn" << 'EOF'
 #!/bin/sh
 # Fake mvn for the training run: the module's deps.list if it has one, else an empty dependency list.
@@ -248,6 +251,7 @@ EOF
   # ArchiveBuilder::make_training_data_shareable, not reproducible in 200+ runs with the same inputs), so a failed
   # attempt is retried once with a fresh recording. The retry leaves out the training data (JEP 515 method profiles
   # and class-init records) that the crash was processing; it costs 2-3 ms per lookup, so the first attempt keeps it.
+  # Keep the retry even on a JDK that fixes the crash: users may run an older one.
   trained=0
   if train_cache; then
     trained=1

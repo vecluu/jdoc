@@ -11,8 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The shared sample library ({@code com.example:sample-lib:1.0.0}) that T04, T05, T06, T08, T09 and T10 test
- * against. Sources live in {@code src/test/resources/io/github/vecluu/jdoc/testsupport/sample-lib/}.
+ * The shared sample library ({@code com.example:sample-lib:1.0.0}) that most parsing, indexing, lookup and
+ * end-to-end tests run against. Sources live in
+ * {@code src/test/resources/io/github/vecluu/jdoc/testsupport/sample-lib/}; a new doc-source flavour or Java shape
+ * goes here rather than into a new fixture.
  *
  * <p>Contents of package {@code com.example.sample} (all documented unless noted):
  * <ul>

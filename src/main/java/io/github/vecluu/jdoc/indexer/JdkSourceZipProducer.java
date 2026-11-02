@@ -35,6 +35,9 @@ import lombok.extern.slf4j.Slf4j;
  * parses them (and their {@code package-info.java} files, for package docs) on a bounded pool of worker threads,
  * one {@link JavaSourceParser} per worker; each type keeps its rendered docs. The calling thread
  * receives the results and passes them to the sink, so a single thread writes to the database.
+ *
+ * <p>Types are inserted in worker completion order, so JDK type ids differ between runs: never rely on their order.
+ * A file that throws while parsing is logged and skipped; a worker {@link Error} aborts the whole JDK index.
  */
 @Slf4j
 final class JdkSourceZipProducer implements EntryProducer {
@@ -98,6 +101,7 @@ final class JdkSourceZipProducer implements EntryProducer {
             String relative = module.isEmpty() ? name : name.substring(module.length() + 1);
             String fileName = relative.substring(relative.lastIndexOf('/') + 1);
             boolean packageInfo = fileName.equals(PACKAGE_INFO);
+            // A '-' cannot be in a type name: such files are not compilation units of a type (except package-info).
             if (fileName.equals(MODULE_INFO) || (!packageInfo && fileName.indexOf('-') >= 0)) {
                 continue;
             }
