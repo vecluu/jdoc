@@ -16,7 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Keeps {@code scripts/bench-startup.sh} working: one measured run per command and per "first call after adding a
  * dependency" scenario on the fat jar, with the script's temporary project, fake {@code mvn} and {@code JDOC_CACHE}
- * inside a test directory.
+ * inside a test directory, and by default with the JVM flags of {@code dist/install.sh}.
  */
 @Tag("slow")
 class BenchStartupScriptIT {
@@ -53,6 +53,10 @@ class BenchStartupScriptIT {
         assertThat(process.waitFor(5, TimeUnit.MINUTES)).as("finished").isTrue();
 
         assertThat(process.exitValue()).as(output).isZero();
+        String installerFlags = Files.readString(Path.of(System.getProperty("user.dir"), "dist", "install.sh"))
+                .lines().filter(line -> line.startsWith("jvm_flags='")).findFirst().orElseThrow()
+                .replaceAll("^jvm_flags='(.*)'$", "$1");
+        assertThat(output).as("default flags are the installer's").contains("\nflags: " + installerFlags + "\n");
         List<String> rows = output.lines().filter(line -> line.matches("\\s*\\d+\\s+\\d+\\s+\\d+\\s+.+")).toList();
         assertThat(rows).as(output).hasSize(COMMANDS.size());
         for (int i = 0; i < COMMANDS.size(); i++) {

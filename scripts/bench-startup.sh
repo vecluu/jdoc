@@ -12,7 +12,8 @@
 #   BENCH_RUNS        measured runs per command (default 11)
 #   BENCH_WARMUP      unmeasured runs per command before measuring (default 2)
 #   BENCH_JAVA        java executable (default: $JAVA_HOME/bin/java, else `java` on PATH)
-#   BENCH_JVM_FLAGS   JVM flags (default: -XX:TieredStopAtLevel=1); e.g. add -XX:AOTCache=... for T17
+#   BENCH_JVM_FLAGS   JVM flags (default: the `jvm_flags` of dist/install.sh, which the installed launcher runs
+#                     with); set it, even to empty, to measure other flags, e.g. with -XX:AOTCache=...
 #   BENCH_COMMANDS    commands to measure, one per line (default: the list below)
 #   BENCH_KEEP        if set to 1, keep the temp directory and print its path
 #   BENCH_NEW_DEP     if set to 0, skip the "first call after adding a dependency" scenarios (default 1)
@@ -34,9 +35,20 @@ if [ $# -ne 1 ] || [ ! -f "$1" ]; then
 fi
 jar=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 
+# The installer, whose JVM flags are this script's default.
+dist=$(cd "$(dirname "$0")/.." && pwd)/dist
 runs=${BENCH_RUNS:-11}
 warmup=${BENCH_WARMUP:-2}
-jvm_flags=${BENCH_JVM_FLAGS:--XX:TieredStopAtLevel=1}
+if [ -n "${BENCH_JVM_FLAGS+set}" ]; then
+  jvm_flags=$BENCH_JVM_FLAGS
+else
+  # The installer's line is the single source of the flags users run with.
+  jvm_flags=$(sed -n "s/^jvm_flags='\(.*\)'\$/\1/p" "$dist/install.sh" 2> /dev/null) || true
+  if [ -z "$jvm_flags" ]; then
+    echo "error: no jvm_flags='...' line in $dist/install.sh; set BENCH_JVM_FLAGS" >&2
+    exit 2
+  fi
+fi
 if [ -n "${BENCH_JAVA:-}" ]; then
   java=$BENCH_JAVA
 elif [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
