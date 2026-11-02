@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Installs jdoc from the extracted release bundle (VERSION, install.sh, bin/jdoc, lib/jdoc.jar, skill/SKILL.md).
+# Installs jdoc from the extracted release bundle (VERSION, install.sh, bin/jdoc, lib/jdoc.jar, skill/SKILL.md,
+# LICENSE, NOTICE, THIRD-PARTY-NOTICES; the licence files are copied to DIR/share/doc/jdoc/).
 #
 # Usage: install.sh [--prefix DIR] [--bindir DIR] [--skills-dir DIR] [--no-aot]
 #
@@ -44,7 +45,7 @@ die() {
 }
 warn() { echo "install.sh: warning: $*" >&2; }
 
-usage() { sed -n '4,9s/^# \{0,1\}//p' "$0"; }
+usage() { sed -n '5,10s/^# \{0,1\}//p' "$0"; }
 
 prefix=/opt/jdoc
 bindir=/usr/local/bin
@@ -101,6 +102,14 @@ if [ -f "$here/VERSION" ]; then
   cp "$here/VERSION" "$prefix/VERSION"
   chmod 644 "$prefix/VERSION"
 fi
+# Licence files travel with the jar.
+for f in LICENSE NOTICE THIRD-PARTY-NOTICES; do
+  if [ -f "$here/$f" ]; then
+    mkdir -p "$prefix/share/doc/jdoc"
+    cp "$here/$f" "$prefix/share/doc/jdoc/$f"
+    chmod 644 "$prefix/share/doc/jdoc/$f"
+  fi
+done
 
 # 2. The sqlite native library for this OS and architecture, as sqlite-jdbc itself names the folder.
 rm -rf "$lib/native"
