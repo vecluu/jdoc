@@ -1,0 +1,307 @@
+jdoc third-party notices
+
+jdoc is licensed under the Apache License, Version 2.0 (see LICENSE). The jdoc
+jar bundles the third-party components listed below. Each section names the
+component, its coordinates and version, upstream URL, SPDX licence identifier
+and copyright lines. Components under Apache-2.0 refer to the licence text in
+LICENSE; every other licence is reproduced in full.
+
+Sections:
+  [sqlite-jdbc]          SQLite JDBC driver, incl. the SQLite native libraries
+  [jsoup]                jsoup HTML parser
+  [asm]                  ASM bytecode library
+  [vineflower]           Vineflower decompiler, incl. its bundled plugins
+  [jetbrains-annotations] JetBrains annotations (inside the Vineflower Kotlin plugin)
+  [kotlin-metadata]      Kotlin metadata library (inside the Vineflower Kotlin plugin)
+  [kotlin-protobuf]      Kotlin's protobuf-lite fork (inside the Vineflower Kotlin plugin)
+  [slf4j-api]            SLF4J API
+  [slf4j-simple]         SLF4J simple binding
+
+================================================================================
+[sqlite-jdbc] SQLite JDBC driver
+================================================================================
+Maven:      org.xerial:sqlite-jdbc:3.54.1.0
+URL:        https://github.com/xerial/sqlite-jdbc
+SPDX:       Apache-2.0 AND ISC AND BSD-2-Clause (Java and JNI code);
+            blessing (SQLite 3.54.1 native code)
+Jar paths:  org/sqlite/**, sqlite-jdbc.properties,
+            META-INF/maven/org.xerial/**, META-INF/native-image/org.xerial/**,
+            META-INF/versions/9/org/sqlite/**
+
+Copyright 2009 Taro L. Saito
+Copyright 2010 Taro L. Saito
+Copyright 2016 Magnus Reftel
+Copyright (c) 2007 David Crawshaw <david@zentus.com>
+Copyright (c) 2006, David Crawshaw.  All rights reserved.
+Copyright (c) 2021 Gauthier Roebroeck <gauthier.roebroeck@gmail.com>
+
+Most of sqlite-jdbc is licensed under the Apache License, Version 2.0 (see
+LICENSE). The classes in org/sqlite/date are derived from Apache Commons Lang
+(The Apache Software Foundation, Apache-2.0).
+
+The upstream sqlite-jdbc project carries this notice: "This product includes
+the following softwares developed by David Crawshaw. See LICENSE.zentus file."
+The David Crawshaw parts are under the following two licences.
+
+ISC licence (org/sqlite/JDBC.java, Function.java, Collation.java,
+org/sqlite/core/DB.java, NativeDB.java, NativeDB.c, Codes.java and the
+Core*.java classes; the Collation.java copyright is Gauthier Roebroeck's):
+
+    Copyright (c) 2007 David Crawshaw <david@zentus.com>
+
+    Permission to use, copy, modify, and/or distribute this software for any
+    purpose with or without fee is hereby granted, provided that the above
+    copyright notice and this permission notice appear in all copies.
+
+    THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+    WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+    MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+    ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+BSD-2-Clause licence (LICENSE.zentus):
+
+    Copyright (c) 2006, David Crawshaw.  All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions
+    are met:
+
+    1. Redistributions of source code must retain the above copyright
+       notice, this list of conditions and the following disclaimer.
+    2. Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+
+    THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+    ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+    FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+    DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+    OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+    OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+    SUCH DAMAGE.
+
+
+SQLite (native libraries under org/sqlite/native/**, SQLite 3.54.1):
+
+    The author disclaims copyright to this source code. In place of a legal
+    notice, here is a blessing:
+
+        May you do good and not evil.
+        May you find forgiveness for yourself and forgive others.
+        May you share freely, never taking more than you give.
+
+    SQLite is in the public domain (https://sqlite.org/copyright.html). The
+    native libraries also contain sqlite-jdbc's JNI glue (NativeDB.c, ISC,
+    above) and the SQLite contrib extension-functions.c by Liam Healy, which
+    carries no licence statement and is distributed as public domain.
+
+================================================================================
+[jsoup] jsoup HTML parser
+================================================================================
+Maven:      org.jsoup:jsoup:1.23.2
+URL:        https://jsoup.org/
+SPDX:       MIT
+Jar paths:  org/jsoup/**, META-INF/jsoup/**, META-INF/maven/org.jsoup/**,
+            META-INF/proguard/org.jsoup_jsoup.pro, META-INF/versions/11/org/jsoup/**
+
+The MIT License
+
+Copyright (c) 2009-2026 Jonathan Hedley <https://jsoup.org/>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+[asm] ASM bytecode manipulation framework
+================================================================================
+Maven:      org.ow2.asm:asm:9.11.1
+URL:        https://asm.ow2.io/
+SPDX:       BSD-3-Clause
+Jar paths:  org/objectweb/asm/**
+
+ASM: a very small and fast Java bytecode manipulation framework
+Copyright (c) 2000-2011 INRIA, France Telecom
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+3. Neither the name of the copyright holders nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+THE POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+[vineflower] Vineflower decompiler
+================================================================================
+Maven:      org.vineflower:vineflower:1.12.0
+URL:        https://vineflower.org/ (https://github.com/Vineflower/vineflower)
+SPDX:       Apache-2.0
+Jar paths:  org/jetbrains/java/decompiler/**, net/fabricmc/fernflower/**,
+            META-INF/plugins/vineflower-idea-not-null.jar,
+            META-INF/plugins/vineflower-variable-renaming.jar,
+            META-INF/plugins/vineflower-kotlin-0.1.0.jar (org/vineflower/kotlin/**)
+
+Copyright 2000-2022 JetBrains s.r.o.
+Copyright 2000-2022 JetBrains s.r.o. and ForgeFlower contributors
+Copyright 2019 FabricMC project
+
+Licensed under the Apache License, Version 2.0 (see LICENSE). Vineflower is
+based on JetBrains' Fernflower; upstream Fernflower states "Copyright (c)
+2014-2025 JetBrains s.r.o." in its NOTICE.txt, which Vineflower does not
+distribute. The nested plugin jars are Vineflower's own code under the same
+licence, except for the third-party parts of the Kotlin plugin listed in the
+next three sections.
+
+================================================================================
+[jetbrains-annotations] JetBrains Java annotations
+================================================================================
+Maven:      org.jetbrains:annotations:24.0.0 (bundled inside
+            META-INF/plugins/vineflower-kotlin-0.1.0.jar)
+URL:        https://github.com/JetBrains/java-annotations
+SPDX:       Apache-2.0
+Jar paths:  org/jetbrains/annotations/**, org/intellij/lang/annotations/**
+            (inside the nested Kotlin plugin jar)
+
+Copyright 2000-2023 JetBrains s.r.o.
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+================================================================================
+[kotlin-metadata] Kotlin metadata library (repackaged)
+================================================================================
+Origin:     Kotlin (org.jetbrains.kotlin), repackaged by Vineflower as
+            org.vineflower.kt.metadata inside
+            META-INF/plugins/vineflower-kotlin-0.1.0.jar
+URL:        https://github.com/JetBrains/kotlin
+SPDX:       Apache-2.0
+Jar paths:  org/vineflower/kt/metadata/** (inside the nested Kotlin plugin jar)
+
+Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+================================================================================
+[kotlin-protobuf] Kotlin's protobuf-lite fork (repackaged)
+================================================================================
+Origin:     Protocol Buffers (Google), as forked in the Kotlin repository and
+            repackaged by Vineflower as org.vineflower.kt.protobuf inside
+            META-INF/plugins/vineflower-kotlin-0.1.0.jar
+URL:        https://github.com/protocolbuffers/protobuf
+SPDX:       BSD-3-Clause
+Jar paths:  org/vineflower/kt/protobuf/** (inside the nested Kotlin plugin jar)
+
+Copyright 2008 Google Inc.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Code generated by the Protocol Buffer compiler is owned by the owner
+of the input file used when generating it.  This code is not
+standalone and requires a support library to be linked with it.  This
+support library is itself covered by the above license.
+
+================================================================================
+[slf4j-api] SLF4J API
+================================================================================
+Maven:      org.slf4j:slf4j-api:2.0.17
+URL:        https://www.slf4j.org/
+SPDX:       MIT
+Jar paths:  org/slf4j/** (except org/slf4j/simple/**), META-INF/maven/org.slf4j/slf4j-api/**
+
+Copyright (c) 2004-2022 QOS.ch Sarl (Switzerland)
+All rights reserved.
+
+Permission is hereby granted, free  of charge, to any person obtaining
+a  copy  of this  software  and  associated  documentation files  (the
+"Software"), to  deal in  the Software without  restriction, including
+without limitation  the rights to  use, copy, modify,  merge, publish,
+distribute,  sublicense, and/or sell  copies of  the Software,  and to
+permit persons to whom the Software  is furnished to do so, subject to
+the following conditions:
+
+The  above  copyright  notice  and  this permission  notice  shall  be
+included in all copies or substantial portions of the Software.
+
+THE  SOFTWARE IS  PROVIDED  "AS  IS", WITHOUT  WARRANTY  OF ANY  KIND,
+EXPRESS OR  IMPLIED, INCLUDING  BUT NOT LIMITED  TO THE  WARRANTIES OF
+MERCHANTABILITY,    FITNESS    FOR    A   PARTICULAR    PURPOSE    AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE,  ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+================================================================================
+[slf4j-simple] SLF4J simple binding
+================================================================================
+Maven:      org.slf4j:slf4j-simple:2.0.17
+URL:        https://www.slf4j.org/
+SPDX:       MIT
+Jar paths:  org/slf4j/simple/**, META-INF/maven/org.slf4j/slf4j-simple/**
+
+Copyright (c) 2004-2022 QOS.ch Sarl (Switzerland)
+All rights reserved.
+
+Licensed under the MIT licence; the text is identical to the one reproduced in
+the [slf4j-api] section above.
