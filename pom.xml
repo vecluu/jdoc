@@ -187,6 +187,7 @@
                         <!-- RealMavenResolutionIT: the Maven running this build (also under ./mvnw, no PATH needed),
                              its local repository (read-only tail of the offline run) and the plugins this build has
                              resolved there, which the IT's offline project pins -->
+                        <jdoc.itFixtureJars>${project.build.directory}/it-fixture-jars</jdoc.itFixtureJars>
                         <jdoc.mavenHome>${maven.home}</jdoc.mavenHome>
                         <jdoc.localRepository>${settings.localRepository}</jdoc.localRepository>
                         <jdoc.offlinePlugins>maven-compiler-plugin:${compiler-plugin.version},maven-resources-plugin:${resources-plugin.version},maven-dependency-plugin:${dependency-plugin.version}</jdoc.offlinePlugins>
@@ -226,6 +227,31 @@
                             <includeScope>runtime</includeScope>
                             <outputFile>${project.build.directory}/runtime-dependencies.txt</outputFile>
                             <sort>true</sort>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <!-- real JDK-8-built jars for Jdk8JavadocParameterNamesIT, resolved by the build so the IT
+                             never depends on what happens to be in ~/.m2 -->
+                        <id>it-fixture-jars</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.apache.commons</groupId>
+                                    <artifactId>commons-lang3</artifactId>
+                                    <version>3.5</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.apache.commons</groupId>
+                                    <artifactId>commons-lang3</artifactId>
+                                    <version>3.5</version>
+                                    <classifier>javadoc</classifier>
+                                </artifactItem>
+                            </artifactItems>
+                            <outputDirectory>${project.build.directory}/it-fixture-jars</outputDirectory>
                         </configuration>
                     </execution>
                 </executions>
