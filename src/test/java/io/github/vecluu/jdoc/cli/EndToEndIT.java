@@ -8,6 +8,7 @@ import io.github.vecluu.jdoc.model.Gav;
 import io.github.vecluu.jdoc.model.ResolvedDependency;
 import io.github.vecluu.jdoc.model.Scope;
 import io.github.vecluu.jdoc.testsupport.FakeMavenRepo;
+import io.github.vecluu.jdoc.testsupport.FatJar;
 import io.github.vecluu.jdoc.testsupport.JarWriter;
 import io.github.vecluu.jdoc.testsupport.SampleLibrary;
 import io.github.vecluu.jdoc.testsupport.TestEnvironments;
@@ -15,7 +16,6 @@ import io.github.vecluu.jdoc.testsupport.TestLibrary;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -354,7 +354,7 @@ class EndToEndIT {
 
     @Test
     void builtFatJarRuns() throws Exception {
-        Path jar = fatJar();
+        Path jar = FatJar.path();
         assumeTrue(Files.isRegularFile(jar), "fat jar not built: " + jar);
 
         Run help = java(jar, app, "--help");
@@ -374,7 +374,7 @@ class EndToEndIT {
 
     @Test
     void twoFirstRunsAtOnceBothSucceed() throws Exception {
-        Path jar = fatJar();
+        Path jar = FatJar.path();
         assumeTrue(Files.isRegularFile(jar), "fat jar not built: " + jar);
         Path freshCache = Files.createDirectories(root.resolve("fresh-cache"));
 
@@ -387,11 +387,6 @@ class EndToEndIT {
             assertThat(run.code()).as(run.err()).isZero();
             assertThat(run.lines().getFirst()).isEqualTo("java.util.Optional<T>  public final class  (jdk 25)");
         }
-    }
-
-    private static Path fatJar() throws URISyntaxException {
-        Path testClasses = Path.of(EndToEndIT.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-        return testClasses.getParent().resolve("jdoc.jar");
     }
 
     private static Run java(Path jar, Path workingDirectory, String... args) throws Exception {

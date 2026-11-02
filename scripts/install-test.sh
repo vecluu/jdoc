@@ -60,7 +60,9 @@ $name/install.sh
 $name/lib/
 $name/lib/jdoc.jar
 $name/skill/
-$name/skill/SKILL.md"
+$name/skill/SKILL.md
+$name/training/
+$name/training/fake-mvn"
 actual=$(tar tzf "$tarball")
 [ "$actual" = "$expected" ] || die "unexpected tarball entries:
 $actual"

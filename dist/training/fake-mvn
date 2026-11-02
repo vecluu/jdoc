@@ -1,0 +1,10 @@
+#!/bin/sh
+# Stand-in for `mvn` while jdoc is trained or tested (JDOC_MVN points at it); not a user command. jdoc runs Maven in
+# the module directory with -DoutputFile=FILE: this writes the module's deps.list there if it has one, else an empty
+# dependency list, and succeeds. Used by install.sh (AOT training), scripts/bench-startup.sh and InstallerIT.
+out=
+for a in "$@"; do case "$a" in -DoutputFile=*) out="${a#-DoutputFile=}" ;; esac; done
+if [ -n "$out" ]; then
+  if [ -f deps.list ]; then cp deps.list "$out"; else : > "$out"; fi
+fi
+exit 0

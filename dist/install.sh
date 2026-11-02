@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs jdoc from the extracted release bundle (VERSION, install.sh, bin/jdoc, lib/jdoc.jar, skill/SKILL.md,
-# LICENSE, NOTICE, THIRD-PARTY-NOTICES; the licence files are copied to PREFIX/share/doc/jdoc/).
+# training/fake-mvn, LICENSE, NOTICE, THIRD-PARTY-NOTICES; the licence files are copied to PREFIX/share/doc/jdoc/).
 #
 # Usage and options: `install.sh --help` (printed by usage() below).
 #
@@ -105,7 +105,7 @@ prefix=${prefix:-$HOME/.local/share/jdoc}
 bindir=${bindir:-$HOME/.local/bin}
 
 here=$(cd "$(dirname "$0")" && pwd)
-for f in lib/jdoc.jar bin/jdoc; do
+for f in lib/jdoc.jar bin/jdoc training/fake-mvn; do
   [ -f "$here/$f" ] || die "$f missing next to install.sh; run it from the extracted release bundle"
 done
 
@@ -215,18 +215,8 @@ if [ "$train" = 1 ]; then
   <version>1</version>
 </project>
 EOF
-  # jdoc runs Maven in the module directory, which is where the fake finds deps.list. The same fake is in
-  # scripts/bench-startup.sh and InstallerIT.
-  cat > "$work/bin/mvn" << 'EOF'
-#!/bin/sh
-# Fake mvn for the training run: the module's deps.list if it has one, else an empty dependency list.
-out=
-for a in "$@"; do case "$a" in -DoutputFile=*) out="${a#-DoutputFile=}" ;; esac; done
-if [ -n "$out" ]; then
-  if [ -f deps.list ]; then cp deps.list "$out"; else : > "$out"; fi
-fi
-exit 0
-EOF
+  # The bundle's fake `mvn`: jdoc runs it in the module directory, and it lists that module's deps.list.
+  cp "$here/training/fake-mvn" "$work/bin/mvn"
   chmod 755 "$work/bin/mvn"
   printf '%s\n' "$workload" > "$work/workload.txt"
 

@@ -7,7 +7,7 @@ The rules the code follows and the paths that cross packages. Each package says 
 
 ```
 pom.xml, mvnw, .mvn/         single-module Maven build (always ./mvnw); shaded, reproducible target/jdoc.jar
-dist/                        bin/jdoc (POSIX launcher), install.sh, skill/SKILL.md, AGENTS-snippet.md
+dist/                        bin/jdoc (POSIX launcher), install.sh, training/fake-mvn (fake `mvn` for AOT training and the tests), skill/SKILL.md, AGENTS-snippet.md
 scripts/                     assemble.sh, smoke-test.sh, install-test.sh, bench-startup.sh, release-notes.sh
 it/sample-project/           small Maven project for the smoke and install tests
 .github/workflows/build.yml  CI and release

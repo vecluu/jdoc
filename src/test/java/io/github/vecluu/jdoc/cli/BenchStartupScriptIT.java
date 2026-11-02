@@ -3,7 +3,7 @@ package io.github.vecluu.jdoc.cli;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import java.net.URISyntaxException;
+import io.github.vecluu.jdoc.testsupport.FatJar;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,7 +32,7 @@ class BenchStartupScriptIT {
 
     @Test
     void reportsAMedianForEveryCommand() throws Exception {
-        Path jar = fatJar();
+        Path jar = FatJar.path();
         Path script = Path.of(System.getProperty("user.dir"), "scripts", "bench-startup.sh");
         assumeTrue(Files.isRegularFile(jar), "fat jar not built: " + jar);
         assumeTrue(Files.isRegularFile(script), "script not found: " + script);
@@ -71,11 +71,5 @@ class BenchStartupScriptIT {
         String path = System.getenv("PATH");
         return path != null && java.util.Arrays.stream(path.split(java.io.File.pathSeparator))
                 .anyMatch(directory -> Files.isExecutable(Path.of(directory, command)));
-    }
-
-    private static Path fatJar() throws URISyntaxException {
-        Path testClasses = Path.of(BenchStartupScriptIT.class.getProtectionDomain().getCodeSource().getLocation()
-                .toURI());
-        return testClasses.getParent().resolve("jdoc.jar");
     }
 }

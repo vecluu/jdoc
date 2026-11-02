@@ -3,7 +3,7 @@
 #
 # Usage: scripts/bench-startup.sh <path/to/jdoc.jar>
 #
-# Creates a temporary Maven module with a fake `mvn` (empty dependency list), a temporary JDOC_CACHE and
+# Creates a temporary Maven module with the installer's fake `mvn` (dist/training/fake-mvn), a temporary JDOC_CACHE and
 # JDOC_M2_REPO, warms the index with one call (indexes the JDK), then runs every benchmarked command
 # BENCH_WARMUP times unmeasured and BENCH_RUNS times measured, and prints the median wall time per command.
 # Never touches ~/.cache/jdoc or ~/.m2.
@@ -35,7 +35,7 @@ if [ $# -ne 1 ] || [ ! -f "$1" ]; then
 fi
 jar=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 
-# The installer, whose JVM flags are this script's default.
+# The installer's files this script shares: its JVM flags and its fake mvn.
 dist=$(cd "$(dirname "$0")/.." && pwd)/dist
 runs=${BENCH_RUNS:-11}
 warmup=${BENCH_WARMUP:-2}
@@ -86,17 +86,9 @@ cat > "$work/module/pom.xml" <<'EOF'
   <version>1</version>
 </project>
 EOF
-# Fake mvn: writes the module's deps.list (if any, else an empty list) to -DoutputFile=... and succeeds.
-cat > "$work/bin/mvn" <<'EOF'
-#!/bin/sh
-out=
-for a in "$@"; do case "$a" in -DoutputFile=*) out="${a#-DoutputFile=}";; esac; done
-if [ -n "$out" ]; then
-  if [ -f deps.list ]; then cp deps.list "$out"; else : > "$out"; fi
-fi
-exit 0
-EOF
-chmod +x "$work/bin/mvn"
+# The fake mvn shipped with the installer: lists the module's deps.list (if any, else nothing) and succeeds.
+cp "$dist/training/fake-mvn" "$work/bin/mvn"
+chmod 755 "$work/bin/mvn"
 
 export JDOC_CACHE="$work/cache" JDOC_M2_REPO="$work/m2" JDOC_MVN="$work/bin/mvn" JAVA_HOME="$java_home"
 

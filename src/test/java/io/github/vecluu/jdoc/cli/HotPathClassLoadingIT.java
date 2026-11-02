@@ -7,10 +7,10 @@ import io.github.vecluu.jdoc.config.JdocEnvironment;
 import io.github.vecluu.jdoc.model.ResolvedDependency;
 import io.github.vecluu.jdoc.model.Scope;
 import io.github.vecluu.jdoc.testsupport.FakeMavenRepo;
+import io.github.vecluu.jdoc.testsupport.FatJar;
 import io.github.vecluu.jdoc.testsupport.SampleLibrary;
 import io.github.vecluu.jdoc.testsupport.TestEnvironments;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,7 +50,7 @@ class HotPathClassLoadingIT {
     @BeforeAll
     void indexOnce(@TempDir Path tmp) throws Exception {
         root = tmp;
-        jar = fatJar();
+        jar = FatJar.path();
         assumeTrue(Files.isRegularFile(jar), "fat jar not built: " + jar);
         env = TestEnvironments.inTempDir(root);
         FakeMavenRepo repo = TestEnvironments.repository(env);
@@ -145,11 +145,5 @@ class HotPathClassLoadingIT {
                 .map(line -> line.substring(line.indexOf("[class,load]") + "[class,load]".length()).strip())
                 .map(rest -> rest.split(" ", 2)[0])
                 .toList();
-    }
-
-    private static Path fatJar() throws URISyntaxException {
-        Path testClasses = Path.of(HotPathClassLoadingIT.class.getProtectionDomain().getCodeSource().getLocation()
-                .toURI());
-        return testClasses.getParent().resolve("jdoc.jar");
     }
 }

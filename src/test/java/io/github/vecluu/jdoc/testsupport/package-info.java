@@ -13,6 +13,8 @@
  *   <li>{@link io.github.vecluu.jdoc.testsupport.TestEnvironments}: a {@code JdocEnvironment} rooted in a temp
  *       directory (cache, repository, fake {@code mvn}, working directory);</li>
  *   <li>{@link io.github.vecluu.jdoc.testsupport.JarWriter}: deterministic jars;</li>
+ *   <li>{@link io.github.vecluu.jdoc.testsupport.FatJar}: the path of the shaded {@code jdoc.jar}, for ITs that run
+ *       or install it;</li>
  *   <li>{@link io.github.vecluu.jdoc.testsupport.Prerequisites}: a test that needs an external tool or file calls it;
  *       it skips the test locally when the prerequisite is missing and fails it in CI ({@code CI=true}).</li>
  * </ul>

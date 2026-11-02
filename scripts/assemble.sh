@@ -40,16 +40,17 @@ name=jdoc-$version
 out=$root/out
 stage=$out/$name
 rm -rf "$out"
-mkdir -p "$stage/bin" "$stage/lib" "$stage/skill"
+mkdir -p "$stage/bin" "$stage/lib" "$stage/skill" "$stage/training"
 
 install -m 644 "$jar" "$stage/lib/jdoc.jar"
 install -m 755 dist/bin/jdoc "$stage/bin/jdoc"
 install -m 755 dist/install.sh "$stage/install.sh"
 install -m 644 dist/AGENTS-snippet.md LICENSE NOTICE THIRD-PARTY-NOTICES "$stage/"
 install -m 644 dist/skill/SKILL.md "$stage/skill/SKILL.md"
+install -m 755 dist/training/fake-mvn "$stage/training/fake-mvn"
 printf '%s\n' "$version" > "$stage/VERSION"
 chmod 644 "$stage/VERSION"
-chmod 755 "$stage" "$stage/bin" "$stage/lib" "$stage/skill"
+chmod 755 "$stage" "$stage/bin" "$stage/lib" "$stage/skill" "$stage/training"
 
 tar -C "$out" --sort=name --format=gnu --mtime="@$SOURCE_DATE_EPOCH" \
   --owner=0 --group=0 --numeric-owner --mode='go-w' -cf - "$name" \

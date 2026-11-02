@@ -6,12 +6,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import io.github.vecluu.jdoc.model.Gav;
 import io.github.vecluu.jdoc.model.ResolvedDependency;
 import io.github.vecluu.jdoc.testsupport.FakeMavenRepo;
+import io.github.vecluu.jdoc.testsupport.FatJar;
 import io.github.vecluu.jdoc.testsupport.Prerequisites;
 import io.github.vecluu.jdoc.testsupport.SampleLibrary;
 import io.github.vecluu.jdoc.testsupport.TestLibrary;
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,18 +29,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Installs the release bundle layout ({@code dist/install.sh}, {@code dist/bin/jdoc}, the fat jar) into a temp prefix
- * and runs the installed launcher: AOT cache used while its fingerprint matches (also for the first call after a
- * library is added, whose indexing and decompiling classes come from the cache because the training covered a
- * library), silent fallback to the per-user CDS archive after the jar changes, and no sqlite library extracted to the
- * temp dir per call. Linux only. Missing tools skip the tests locally and fail them in CI (see {@link Prerequisites}).
+ * Installs the release bundle layout ({@code dist/install.sh}, {@code dist/bin/jdoc}, {@code dist/training/fake-mvn},
+ * the fat jar) into a temp prefix and runs the installed launcher: AOT cache used while its fingerprint matches (also
+ * for the first call after a library is added, whose indexing and decompiling classes come from the cache because the
+ * training covered a library), silent fallback to the per-user CDS archive after the jar changes, and no sqlite
+ * library extracted to the temp dir per call. Every jdoc call uses the bundle's fake {@code mvn}. Linux only. Missing
+ * tools skip the tests locally and fail them in CI (see {@link Prerequisites}).
  */
 @Tag("slow")
 class InstallerIT {
 
     private static final String METHOD = "java.util.Optional#orElseThrow";
     private static final String CDS = "source: shared objects file";
-    /** The repository's {@code dist/}: the release bundle's files. */
+    /** The repository's {@code dist/}: the bundle's files, among them the fake {@code mvn} every call here uses. */
     private static final Path DIST = Path.of(System.getProperty("user.dir"), "dist");
 
     private final Prerequisites prerequisites = Prerequisites.fromEnvironment();
@@ -69,16 +70,6 @@ class InstallerIT {
                   <version>1</version>
                 </project>
                 """);
-        Path mvn = tmp.resolve("fake-mvn");
-        Files.writeString(mvn, """
-                #!/bin/sh
-                for a in "$@"; do case "$a" in -DoutputFile=*) out="${a#-DoutputFile=}";; esac; done
-                if [ -n "$out" ]; then
-                  if [ -f deps.list ]; then cp deps.list "$out"; else : > "$out"; fi
-                fi
-                exit 0
-                """);
-        assertThat(mvn.toFile().setExecutable(true)).isTrue();
     }
 
     @Test
@@ -368,13 +359,16 @@ class InstallerIT {
                 .contains("org.jetbrains.java.decompiler.main.Fernflower " + CDS);
     }
 
-    /** Every shipped or CI shell script: {@code dist/install.sh}, {@code dist/bin/jdoc} and {@code scripts/*.sh}. */
+    /**
+     * Every shipped or CI shell script: {@code dist/install.sh}, {@code dist/bin/jdoc}, {@code dist/training/fake-mvn}
+     * and {@code scripts/*.sh}.
+     */
     @Test
     void scriptsAreShellcheckClean() throws Exception {
         prerequisites.require(onPath("shellcheck"), "shellcheck not installed");
         Path root = Path.of(System.getProperty("user.dir"));
         List<String> command = new ArrayList<>(List.of("shellcheck", root.resolve("dist/install.sh").toString(),
-                root.resolve("dist/bin/jdoc").toString()));
+                root.resolve("dist/bin/jdoc").toString(), root.resolve("dist/training/fake-mvn").toString()));
         try (var scripts = Files.list(root.resolve("scripts"))) {
             scripts.filter(script -> script.getFileName().toString().endsWith(".sh")).sorted()
                     .map(Path::toString).forEach(command::add);
@@ -384,16 +378,18 @@ class InstallerIT {
         assertThat(check.code).as(check.toString()).isZero();
     }
 
-    private Path bundle() throws IOException, URISyntaxException {
-        Path jar = fatJar();
+    private Path bundle() throws IOException {
+        Path jar = FatJar.path();
         prerequisites.require(Files.isRegularFile(jar), "fat jar not built: " + jar);
         prerequisites.require(Files.isRegularFile(DIST.resolve("install.sh")), "dist/install.sh not found");
         Path bundle = Files.createDirectories(tmp.resolve("bundle"));
         Files.createDirectories(bundle.resolve("bin"));
         Files.createDirectories(bundle.resolve("lib"));
         Files.createDirectories(bundle.resolve("skill"));
+        Files.createDirectories(bundle.resolve("training"));
         Files.copy(DIST.resolve("install.sh"), bundle.resolve("install.sh"));
         Files.copy(DIST.resolve("bin/jdoc"), bundle.resolve("bin/jdoc"));
+        Files.copy(DIST.resolve("training/fake-mvn"), bundle.resolve("training/fake-mvn"));
         Files.copy(jar, bundle.resolve("lib/jdoc.jar"));
         Files.writeString(bundle.resolve("skill/SKILL.md"), "skill\n");
         Files.writeString(bundle.resolve("VERSION"), "0.0.0-it\n");
@@ -426,7 +422,7 @@ class InstallerIT {
         environment.put("JAVA_HOME", System.getProperty("java.home"));
         environment.put("JDOC_CACHE", cache.toString());
         environment.put("JDOC_M2_REPO", tmp.resolve("m2").toString());
-        environment.put("JDOC_MVN", tmp.resolve("fake-mvn").toString());
+        environment.put("JDOC_MVN", DIST.resolve("training/fake-mvn").toString());
         environment.put("TMPDIR", Files.createDirectories(tmp.resolve("install-tmp")).toString());
         List.of("JDOC_JAVA_OPTS", "JDOC_WRAPPER_DEBUG", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS")
                 .forEach(environment::remove);
@@ -442,11 +438,6 @@ class InstallerIT {
         String path = System.getenv("PATH");
         return path != null && Arrays.stream(path.split(File.pathSeparator))
                 .anyMatch(directory -> Files.isExecutable(Path.of(directory, command)));
-    }
-
-    private static Path fatJar() throws URISyntaxException {
-        Path testClasses = Path.of(InstallerIT.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-        return testClasses.getParent().resolve("jdoc.jar");
     }
 
     private record Run(int code, String out, String err) {
