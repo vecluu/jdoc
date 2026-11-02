@@ -14,6 +14,7 @@
 #   2. trains a JDK AOT cache with the two-step record/create workflow on throwaway modules with a fake `mvn` and a
 #      temporary JDOC_CACHE (no network, no real Maven, the user's cache untouched): the JDK, then a tiny library
 #      generated beforehand in its own JVM (with sources, javadoc only, binary only) in a temporary local repository;
+#      a failed attempt (e.g. a JVM crash) is retried once; a fallback prints one warning line with its reason;
 #   3. writes the cache's fingerprint (JVM flags, `stat` of the jar, java binary and JDK image) next to it.
 # Everything produced lives under the prefix. Re-running the installer rebuilds all of it.
 set -euo pipefail
@@ -120,6 +121,26 @@ quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 # Escape a string for the replacement part of a sed s|...|...| command.
 sed_escape() { printf '%s' "$1" | sed 's/[\\&|]/\\&/g'; }
 stat_key() { stat -L -c '%s %Y %i' "$lib/jdoc.jar" "$java" "$java_home/release" "$java_home/lib/modules" 2>/dev/null || true; }
+# The line of a log that says what went wrong: an `error:` line (jdoc, the training library generator), a JVM crash's
+# signal or error line (`#  SIGSEGV (0xb) at pc=...`), an exception; else its first line.
+first_error() {
+  { grep -m 1 -E '^error:|^#  [A-Za-z]|^Exception|^Error' "$1" || grep -m 1 . "$1" || echo "no output"; } 2> /dev/null \
+    | sed 's/^#  *//'
+}
+# Records the training workload in a fresh JVM and creates the cache as jdoc.aot.tmp from it; the arguments are extra
+# JVM flags of the recording run. Starts from an empty jdoc cache, so every attempt indexes the JDK and the library.
+train_cache() {
+  rm -rf "$work/cache" "$work/jdoc.aotconf" "$lib/jdoc.aot.tmp"
+  mkdir -p "$work/cache"
+  # shellcheck disable=SC2086 # jvm_flags is a list of words on purpose
+  (cd "$work/module" \
+    && env JDOC_CACHE="$work/cache" JDOC_M2_REPO="$work/m2" JDOC_MVN="$work/bin/mvn" JAVA_HOME="$java_home" \
+      "$java" $jvm_flags "${sqlite_props[@]}" "$@" -XX:AOTMode=record -XX:AOTConfiguration="$work/jdoc.aotconf" \
+      -Djdoc.aotTraining="$work/workload.txt" -jar "$lib/jdoc.jar" > "$work/train.log" 2>&1 \
+    && "$java" $jvm_flags "${sqlite_props[@]}" -XX:AOTMode=create -XX:AOTConfiguration="$work/jdoc.aotconf" \
+      -XX:AOTCache="$lib/jdoc.aot.tmp" -jar "$lib/jdoc.jar" >> "$work/train.log" 2>&1) \
+    && [ -s "$lib/jdoc.aot.tmp" ]
+}
 
 # 1. The jar. Drop the old cache first so no call pairs it with the new jar.
 rm -f "$lib/jdoc.aot" "$lib/jdoc.aot.key" "$lib/jdoc.aot.tmp"
@@ -220,17 +241,23 @@ EOF
     printf '%s\n' "$library_workload" >> "$work/workload.txt"
     trained_on="the JDK and the training library"
   else
-    warn "could not generate the training library; the AOT cache covers JDK lookups only. Its log:"
-    tail -n 5 "$work/library.log" >&2 || true
+    reason=$(first_error "$work/library.log")
+    warn "could not generate the training library ($reason); the AOT cache covers JDK lookups only"
   fi
-  # shellcheck disable=SC2086 # jvm_flags is a list of words on purpose
-  if (cd "$work/module" \
-    && env JDOC_CACHE="$work/cache" JDOC_M2_REPO="$work/m2" JDOC_MVN="$work/bin/mvn" JAVA_HOME="$java_home" \
-      "$java" $jvm_flags "${sqlite_props[@]}" -XX:AOTMode=record -XX:AOTConfiguration="$work/jdoc.aotconf" \
-      -Djdoc.aotTraining="$work/workload.txt" -jar "$lib/jdoc.jar" > "$work/train.log" 2>&1 \
-    && "$java" $jvm_flags "${sqlite_props[@]}" -XX:AOTMode=create -XX:AOTConfiguration="$work/jdoc.aotconf" \
-      -XX:AOTCache="$lib/jdoc.aot.tmp" -jar "$lib/jdoc.jar" >> "$work/train.log" 2>&1) \
-    && [ -s "$lib/jdoc.aot.tmp" ]; then
+  # The JVM can crash while it creates the cache (seen once with JDK 25.0.5: SIGSEGV in
+  # ArchiveBuilder::make_training_data_shareable, not reproducible in 200+ runs with the same inputs), so a failed
+  # attempt is retried once with a fresh recording. The retry leaves out the training data (JEP 515 method profiles
+  # and class-init records) that the crash was processing; it costs 2-3 ms per lookup, so the first attempt keeps it.
+  trained=0
+  if train_cache; then
+    trained=1
+  else
+    echo "install.sh: AOT training failed ($(first_error "$work/train.log")); retrying once without method profiles"
+    if train_cache -XX:+UnlockDiagnosticVMOptions -XX:-AOTRecordTraining; then
+      trained=1
+    fi
+  fi
+  if [ "$trained" = 1 ]; then
     chmod 644 "$lib/jdoc.aot.tmp"
     {
       echo "# Fingerprint of jdoc.aot, written by install.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ); sourced by bin/jdoc."
@@ -248,7 +275,8 @@ EOF
     echo "AOT cache: $lib/jdoc.aot ($(($(stat -c %s "$lib/jdoc.aot") / 1048576)) MB, trained on $trained_on)"
   else
     rm -f "$lib/jdoc.aot.tmp"
-    warn "AOT training failed; jdoc works, but starts slower. Last lines of the training log:"
+    reason=$(first_error "$work/train.log")
+    warn "AOT training failed twice ($reason); jdoc works, but starts slower. Last lines of the training log:"
     tail -n 20 "$work/train.log" >&2 || true
   fi
 fi

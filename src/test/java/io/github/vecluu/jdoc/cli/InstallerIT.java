@@ -86,7 +86,7 @@ class InstallerIT {
         Run install = run(List.of("bash", bundle.resolve("install.sh").toString(), "--prefix", prefix.toString(),
                 "--bindir", bindir.toString(), "--skills-dir", tmp.resolve("skills").toString()), Map.of());
         assertThat(install.code).as(install.toString()).isZero();
-        assertThat(install.out).contains("trained on the JDK and the training library");
+        assertThat(install.out).as(install.toString()).contains("trained on the JDK and the training library");
         assertThat(install.err).as("no installer warning").isEmpty();
         Path lib = prefix.resolve("lib");
         assertThat(lib.resolve("jdoc.jar")).isRegularFile();
@@ -143,6 +143,118 @@ class InstallerIT {
         Run healed = jdoc(Map.of(), "--version");
         assertThat(healed.err).isEmpty();
         assertThat(Files.size(cache.resolve("cds/jdoc.jsa"))).as("broken archive rebuilt").isPositive();
+    }
+
+    /**
+     * A training-library generator that fails costs only the library part of the training: the installer prints
+     * exactly one warning line with the generator's error line, trains on the JDK and exits 0.
+     */
+    @Test
+    void installerWarnsWithTheReasonAndTrainsOnTheJdkWhenTheTrainingLibraryCannotBeGenerated() throws Exception {
+        assumeTrue(System.getProperty("os.name").startsWith("Linux"), "Linux only");
+        prerequisites.require(onPath("bash") && onPath("stat"), "bash and stat needed");
+        Run install = installWithFakeJava("""
+                if [ "$a" = %s ]; then
+                  echo 'error: simulated generator failure' >&2
+                  echo 'a second line that the warning leaves out' >&2
+                  exit 3
+                fi""".formatted(TrainingLibrary.class.getName()));
+
+        assertThat(install.code).as(install.toString()).isZero();
+        assertThat(install.out).as(install.toString()).contains("trained on the JDK)")
+                .doesNotContain("training library").doesNotContain("retrying");
+        assertThat(install.err.lines().toList()).as(install.toString()).containsExactly(
+                "install.sh: warning: could not generate the training library (error: simulated generator failure);"
+                        + " the AOT cache covers JDK lookups only");
+        assertThat(prefix.resolve("lib/jdoc.aot")).isRegularFile();
+        assertThat(prefix.resolve("lib/jdoc.aot.key")).isRegularFile();
+    }
+
+    /**
+     * A JVM crash while creating the cache (as JDK 25.0.5 did once, see {@code tasks/notes/T26.md}) is retried once
+     * with a fresh recording without training data; the installer says so on stdout, and the cache is complete.
+     */
+    @Test
+    void installerRetriesTheTrainingOnceWhenTheJvmCrashesCreatingTheCache() throws Exception {
+        assumeTrue(System.getProperty("os.name").startsWith("Linux"), "Linux only");
+        prerequisites.require(onPath("bash") && onPath("stat"), "bash and stat needed");
+        Path crashed = tmp.resolve("crashed-once");
+        Run install = installWithFakeJava("""
+                if [ "$a" = -XX:AOTMode=create ] && [ ! -e '%s' ]; then
+                  : > '%s'
+                  printf '#\\n# A fatal error has been detected by the Java Runtime Environment:\\n#\\n'
+                  printf '#  SIGSEGV (0xb) at pc=0x0000000000000001, pid=1, tid=1\\n#\\n'
+                  exit 134
+                fi""".formatted(crashed, crashed));
+
+        assertThat(install.code).as(install.toString()).isZero();
+        assertThat(crashed).as("the simulated crash happened").exists();
+        assertThat(install.out).as(install.toString())
+                .contains("install.sh: AOT training failed (SIGSEGV (0xb) at pc=0x0000000000000001, pid=1, tid=1);"
+                        + " retrying once without method profiles")
+                .contains("trained on the JDK and the training library");
+        assertThat(install.err).as("a successful retry is no warning").isEmpty();
+        assertThat(prefix.resolve("lib/jdoc.aot")).isRegularFile();
+        // The fingerprint names the fake JDK, so the launcher would fall back; the real java maps the cache directly.
+        Path lib = prefix.resolve("lib");
+        Run aot = run(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-XX:-UsePerfData", "-XX:AOTMode=on",
+                "-XX:AOTCache=" + lib.resolve("jdoc.aot"), "-jar", lib.resolve("jdoc.jar").toString(), "--version"),
+                Map.of());
+        assertThat(aot.code).as(aot.toString()).isZero();
+        assertThat(aot.out).startsWith("jdoc ");
+    }
+
+    /**
+     * Installs the bundle with a fake JDK first on PATH (see {@link #fakeJdk}) whose {@code java} runs
+     * {@code failure} for every argument {@code $a} before it runs the real {@code java}.
+     */
+    private Run installWithFakeJava(String failure) throws Exception {
+        Path bundle = bundle();
+        Path fakeHome = tmp.resolve("fake jdk");
+        try {
+            Path fakeBin = fakeJdk(fakeHome, failure);
+            return run(List.of("bash", bundle.resolve("install.sh").toString(), "--prefix", prefix.toString(),
+                    "--bindir", bindir.toString()), Map.of("PATH", fakeBin + File.pathSeparator + System.getenv("PATH")));
+        } finally {
+            deleteLinks(fakeHome);
+        }
+    }
+
+    /**
+     * A JDK home whose {@code bin/java} is a script that can fail on purpose and otherwise runs the real {@code java};
+     * the other top-level entries and {@code bin/jar} link to the real JDK, so the installer's JDK checks and
+     * training work.
+     *
+     * @param failure sh code run for every argument {@code $a}, may exit
+     * @return the fake home's {@code bin} directory
+     */
+    private static Path fakeJdk(Path home, String failure) throws IOException {
+        Path realHome = Path.of(System.getProperty("java.home")).toRealPath();
+        Path bin = Files.createDirectories(home.resolve("bin"));
+        try (var entries = Files.list(realHome)) {
+            for (Path entry : entries.filter(entry -> !entry.getFileName().toString().equals("bin")).toList()) {
+                Files.createSymbolicLink(home.resolve(entry.getFileName().toString()), entry);
+            }
+        }
+        Files.createSymbolicLink(bin.resolve("jar"), realHome.resolve("bin/jar"));
+        Path java = bin.resolve("java");
+        Files.writeString(java, "#!/bin/sh\nfor a in \"$@\"; do\n" + failure + "\ndone\nexec '"
+                + realHome.resolve("bin/java") + "' \"$@\"\n");
+        assertThat(java.toFile().setExecutable(true)).isTrue();
+        return bin;
+    }
+
+    /** Removes the fake JDK's links before {@code @TempDir} cleanup, which warns about links leaving the temp dir. */
+    private static void deleteLinks(Path home) throws IOException {
+        if (!Files.isDirectory(home)) {
+            return;
+        }
+        try (var paths = Files.walk(home)) {
+            for (Path link : paths.filter(Files::isSymbolicLink).toList()) {
+                Files.delete(link);
+            }
+        }
     }
 
     /**
