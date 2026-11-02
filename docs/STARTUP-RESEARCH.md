@@ -376,6 +376,48 @@ Where a warm `method` call still spends its time (T17 flags, ~150 ms; `-Xlog:cla
 
 Most of the remainder is cold code, which is what the AOT cache (T17) removes.
 
+## Measured (T17, installed AOT cache, wrapper and installer)
+
+`scripts/bench-startup.sh` on the jar installed by `dist/install.sh` (median of 11 after 2 warm-ups, machine shared
+with other builds, so ±10 ms). All columns use `-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData` and the
+pre-extracted sqlite library; "AOT" adds the installer's cache, "fallback" the wrapper's
+`-XX:+AutoCreateSharedArchive` archive (created by the bench's warm-up `index` call). Cache trained on the
+installer's workload (index, version, help, method, class, find, member, package, impls, source): 35 to 37 MB,
+installer run ~8.5 s.
+
+| Command | no cache | AOT cache | fallback archive |
+| --- | --- | --- | --- |
+| `--version` | 40 ms | 51 ms | 40 ms |
+| `class java.util.Optional` | 183 | 92 | 136 |
+| `method java.util.Optional#orElseThrow` | 167 | 86 | 132 |
+| `find HashMap` | 198 | 111 | 175 |
+| `member orElseThrow` | 167 | 86 | 120 |
+| `source java.util.Optional#orElseThrow` | 161 | 91 | 130 |
+
+The wrapper itself (one `command -v` subshell, one `stat`, sourcing the fingerprint) costs 3 to 4 ms over calling
+`java` directly. `--version` is ~10 ms slower with the cache (mapping 36 MB) but is not a hot call.
+
+Verified while building the wrapper (JDK 25.0.5):
+
+- **The research's `-Xlog:aot=off -Xlog:cds=off` is not enough**: those select only the exact tag sets, and the
+  dynamic archive's `[warning][cds,dynamic] Unable to use shared archive` (after the jar changes) still appears. All
+  default unified-logging output also goes to **stdout**, i.e. into jdoc's answer. The wrapper uses
+  `-Xlog:disable -Xlog:all=warning:stderr -Xlog:aot*=off,cds*=off:stderr`: other JVM warnings move to stderr,
+  cache messages disappear.
+- `-XX:SharedArchiveFile` in a **missing directory** is a hard VM failure (exit 1); the wrapper creates the
+  directory and leaves the flag out if it cannot.
+- A dynamic archive **without a valid header** (empty file, or zeroed header: the JVM writes the header last, so
+  an interrupted or concurrent write leaves one) is never rebuilt: every later call runs without any CDS and prints
+  `-XX:+AutoCreateSharedArchive is unsupported when base CDS archive is not loaded` (a VM warning, not unified
+  logging). A truncated file with a valid header is rebuilt. The wrapper reads the 4-byte magic
+  (`a8 ab 0b f0`) with `od` on the fallback path only and deletes a bad file; it also passes `-XX:-PrintWarnings`
+  there. Eight concurrent first calls: all succeed with identical output and empty stderr.
+- The fallback archive holds the classes of the call that created it and is not extended later (a first
+  `--version` gives a 0.35 MB archive that helps little); it is rebuilt only when the jar or JDK changes.
+- An AOT cache renamed after `-XX:AOTMode=create` still works, so the installer builds it under a temp name and
+  moves it in place. `-Djdoc.aotTraining=...` at training time does not stop the cache matching runtime calls.
+- Java's temp dir ignores `TMPDIR`; with the wrapper nothing appears in `java.io.tmpdir` per call.
+
 ## Experiments (reproducible)
 
 Scratch dir: `/tmp/claude-1000/-home-rave-IdeaProjects-jdoc/fc95a69f-0953-495a-80f4-29f342833d65/scratchpad/startup/`
