@@ -1,8 +1,9 @@
-# Code map C: indexing (`source`, `javadoc`, `bytecode`, `decompile`, `indexer`)
+# Code map: indexing (`source`, `javadoc`, `bytecode`, `decompile`, `indexer`)
 
-Binding rules (package dependencies): [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); signature format:
-[`docs/SPEC.md`](../SPEC.md); DB layout: `resolution-and-index.md`.
-Spec of doc sources and refresh: `docs/SPEC.md` sections "Index, cache and refresh" and "Doc sources".
+Paths are relative to `src/main/java/io/github/vecluu/jdoc/` (tests: `src/test/java/io/github/vecluu/jdoc/`) unless they start
+with `src/`. Binding rules, runtime flows, change recipes and the test map are in
+[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); behaviour is in [`docs/SPEC.md`](../SPEC.md) (sections "Index, cache and refresh", "Doc sources",
+"Signature format"). Neither is repeated here. The database layout is in [`resolution-and-index.md`](resolution-and-index.md).
 
 ## Purpose
 
@@ -13,8 +14,6 @@ lookup time instead: it produces source text for `jdoc source` on types that hav
 
 ## Key types
 
-All paths are under `src/main/java/io/github/vecluu/jdoc/`.
-
 **`indexer`** (orchestration, the only package here that writes to the index)
 - `indexer.ClasspathIndexer`: entry point, `index(ModuleClasspath, IndexOptions) → IndexResult`. It stats the jars,
   decides what is stale, takes the `index.IndexLock` only when something is pending, skips remembered failures, and
@@ -22,7 +21,7 @@ All paths are under `src/main/java/io/github/vecluu/jdoc/`.
 - `indexer.IndexOptions` (`lookup()`, `indexCommand(force)`), `indexer.IndexResult`, `indexer.IndexReport`,
   `indexer.IndexFailure`, `indexer.ArtifactWithoutSources`, `indexer.TypeWithoutSources`: inputs and results.
 - `indexer.ArtifactIndexer` → `indexer.JarArtifactIndexer`: one Maven jar. Scans the jar, groups classes by top-level
-  type, runs the fallback per group, writes types in batches of 500, then one package doc per package.
+  type, runs the fallback per group, writes types in batches, then one package doc per package.
 - `indexer.TypeDocResolver` (package-private): the per-type fallback SOURCES → JAVADOC → DECOMPILED, plus
   `packageDoc(pkg)` (`package-info.java`, else `package-summary.html`).
 - `indexer.ParameterNames` (package-private): puts real parameter names from a javadoc page into a bytecode member
@@ -76,7 +75,7 @@ All paths are under `src/main/java/io/github/vecluu/jdoc/`.
   `bytecode.MemberDescriptorFactory`, `bytecode.SignatureParser` + `bytecode.JvmType` (descriptor/generic AST),
   `bytecode.TypeRenderer` (simple names, `Outer.Inner`), `bytecode.AccessFlags`.
 
-**`decompile`** (Vineflower 1.12, in-process)
+**`decompile`** (Vineflower, in-process)
 - `decompile.Decompiler` → `decompile.VineflowerDecompiler`: `decompile(jar, type)` returns the source of the
   *top-level* type. It feeds only `Outer.class` + `Outer$*.class`; the jar is a lazy library. Options are
   deterministic: one thread, no banner or comments, `\n`, 4-space indent.
@@ -124,8 +123,8 @@ may have indexed it) → re-check the remembered failure → `DecompiledCacheEvi
 
 **Indexing the JDK:** `ClasspathIndexer` → `DefaultJdkIndexer.index` → `JdkSourceZipProducer.produce`. It lists every
 `.java` (all form `KnownTypes`, so supertypes resolve exactly), reads exports from each `module-info.java` (regex),
-filters packages, and parses on `defaultThreads()` workers (cores, max 8), one `JavaSourceParser` each, behind a
-bounded queue. The calling thread is the only DB writer (batches of 1000, plus `package-info.java` docs). Entry paths
+filters packages, and parses on `defaultThreads()` workers (one per core, capped), one `JavaSourceParser` each, behind a
+bounded queue. The calling thread is the only DB writer (in batches, plus `package-info.java` docs). Entry paths
 keep the module: `java.base/java/util/Optional.java`. Without `src.zip`, `JrtBytecodeProducer` is used: module
 descriptors give the exports, no docs, one warn.
 
@@ -150,19 +149,18 @@ Under `src/test/java/io/github/vecluu/jdoc/<package>/`. Unit tests use fakes: `i
 - `indexer.ArtifactIndexerIT`: mixed library into real SQLite, right doc source per type, exact supertypes across
   artifacts, only API members, re-index replaces.
 - `indexer.ClasspathIndexerIT`: whole flow with the real lock and a miniature `src.zip`: reuse, touch → re-index,
-  force, 4 concurrent indexers, missing/corrupt/truncated jars, remembered failures.
+  force, concurrent indexers, missing/corrupt/truncated jars, remembered failures.
 - `indexer.Jdk8JavadocParameterNamesIT`: commons-lang3 3.5 legacy javadoc (jars copied by the build to
   `jdoc.itFixtureJars`; fails instead of skipping when `CI=true`).
 - `decompile.VineflowerDecompilerIT`: decompiles fixture types, output parses, deterministic, cache hit.
-- **Slow** (seconds; read the running JDK): `indexer.JdkIndexerIT` (full `src.zip` + jrt fallback),
+- **Slow** (read the running JDK): `indexer.JdkIndexerIT` (full `src.zip` + jrt fallback),
   `source.JdkSourceParseIT` (all of java.base), `bytecode.JdkJmodSmokeIT` (all of java.base via `jrt:/`).
-- Hot-path guard outside the area: `cli.HotPathClassLoadingIT` asserts that lookups (all but `source`) load no
-  javac/jsoup/ASM/Vineflower classes.
+- The hot-path guard `cli.HotPathClassLoadingIT` is described in [`lookup-and-cli.md`](lookup-and-cli.md).
 
 ## Extension points
 
 - **New doc source tier or a change to the fallback order:** `indexer.TypeDocResolver` (plus `model.DocSource` and
-  the header tags, area A). A per-package doc source goes in `TypeDocResolver.packageDoc`.
+  the header tags, [`foundation.md`](foundation.md)). A per-package doc source goes in `TypeDocResolver.packageDoc`.
 - **New input container** (e.g. a directory instead of a jar): implement `indexer.EntryProducer` and call
   `IndexStore.replace`, like `JdkSourceZipProducer` and `JrtBytecodeProducer` do. For other doc-jar locations, implement
   `indexer.DocJarLocator`. For other archive formats, implement `indexer.ArchiveOpener`.
@@ -172,7 +170,7 @@ Under `src/test/java/io/github/vecluu/jdoc/<package>/`. Unit tests use fakes: `i
   `JavadocSectionRenderer.notes` on the HTML side. Both must produce the same text (`JavadocJarIT` checks this).
 - **Decompiler swap:** implement `decompile.Decompiler`; the cache and lookup only see `DecompiledSourceProvider`.
 - **Stored output changes need a schema bump:** any change to signatures, docs, parameter names or entry paths written
-  at index time must bump `index.Schema.VERSION` (now 4). Otherwise existing caches keep the old text: they are only
+  at index time must bump `index.Schema.VERSION`. Otherwise existing caches keep the old text: they are only
   rebuilt on a version mismatch.
 
 ## Gotchas

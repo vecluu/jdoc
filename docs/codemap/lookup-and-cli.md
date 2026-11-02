@@ -1,8 +1,9 @@
 # Code map: lookup, app, cli and `Main`
 
-Paths are below `src/main/java/io/github/vecluu/jdoc/` (tests below `src/test/java/...`). Binding rules (layering,
-stdout ownership, runtime flow) are in [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); this file only maps
-the code.
+Paths are relative to `src/main/java/io/github/vecluu/jdoc/` (tests: `src/test/java/io/github/vecluu/jdoc/`) unless they start
+with `src/`. Binding rules, runtime flows, change recipes and the test map are in
+[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); behaviour is in [`docs/SPEC.md`](../SPEC.md) (commands, output, exit
+codes). Neither is repeated here.
 
 ## Purpose
 
@@ -22,7 +23,7 @@ given, then runs `cli.JdocCli`, or `cli.TrainingWorkload` when the `jdoc.aotTrai
 - `JdocCli` — `execute(args)` → exit code: parse, print help/version (exit 0) or run a command; turns
   `UsageException` and any `RuntimeException` into one `error:` line (exit 3). `forEnvironment(...)` = real wiring.
 - `CommandLineParser` — hand-written parser → sealed `CliRequest` (`Help`, `Version`, `Run(JdocCommand, Invocation)`).
-- `JdocCommand` — enum of the 8 commands: name, argument label, help lines, accepted options, and `call(app,
+- `JdocCommand` — enum of the commands: name, argument label, help lines, accepted options, and `call(app,
   invocation)` (a plain `switch` onto `app.Application`). `OptionDefinition` — `FROM`, `PAGE`, `FORCE`.
   `Invocation` — parsed argument, `--from`, `--page`, `--force`.
 - `HelpText` — the hand-written `--help` texts (overview and per command). `ManifestVersion` — `--version` from the
@@ -33,12 +34,11 @@ given, then runs `cli.JdocCli`, or `cli.TrainingWorkload` when the `jdoc.aotTrai
 - `FailureReporter` — the `error:` lines; holds the package's only logger (slf4j loads only on failure).
   `UsageException` — malformed command line, knows which `--help` to point at.
 - `CompositionRoot` — `create(JdocEnvironment)` → `Application`; the only place that `new`s concrete components.
-- `TrainingWorkload` — AOT training run: executes a workload file (one command per line) through fresh `JdocCli`s
-  in one JVM. `TrainingLibrary` (+ package-private `TrainingLibrarySources`) — `main` used by `dist/install.sh` to
-  compile a throwaway three-flavour library (sources / javadoc / binary) into a Maven layout for that training.
+- `TrainingWorkload`, `TrainingLibrary`, `TrainingLibrarySources` — install-time AOT training; described with the
+  install flow in [`build-and-delivery.md`](build-and-delivery.md).
 
 **`app`**
-- `Application` — the 8 calls (`find`, `classView`, `method`, `source`, `impls`, `member`, `packageView`, `index`)
+- `Application` — one call per command (`find`, `classView`, `method`, `source`, `impls`, `member`, `packageView`, `index`)
   + `close()`. `CommandApplication` — implementation delegating to one command object each; `onClose` closes the DB.
 - `LookupCommand` — `run(argument, from)`; implemented by `FindCommand`, `ClassCommand`, `MethodCommand`,
   `SourceCommand`, `ImplsCommand`, `MemberCommand`, `PackageCommand`. `IndexCommand.run(force, from)` is separate.
@@ -80,7 +80,7 @@ given, then runs `cli.JdocCli`, or `cli.TrainingWorkload` when the `jdoc.aotTrai
 - `SourceLoader` → sealed `MemberSource` (`Available(code, doc, decompiled)`, `Unavailable(reason)`); uses
   `SourceFiles` (+ `ParsedText`; cached entry text and lazy `source.JavaSourceParser`), `ArtifactFiles` (artifact rows
   by id), `JarEntryReader` / `ZipJarEntryReader` (one zip entry as UTF-8).
-- `FindService` → `FindResult` / `FindHit` (cap `MAX_HITS` = 200). `MemberSearchService` → `List<MemberMatch>`.
+- `FindService` → `FindResult` / `FindHit` (cap `MAX_HITS`). `MemberSearchService` → `List<MemberMatch>`.
   `PackageService` → sealed `PackageLookup` (`Found(PackageView)`, `NotFound(name, suggestions)`).
 
 ## Collaborations
@@ -133,9 +133,9 @@ Shared prefix for every command: `Main.main` → `Main.run` → `JdocCli.forEnvi
 - `package <pkg>`: `PackageService.describe` (`TypeRepository.findByPackage`, `DocLoader.packageDoc`; not found →
   `listPackages` suggestions) → header with artifact labels, doc, type rows.
 - `index [--force]`: `IndexCommand` uses `IndexOptions.indexCommand(force)` (reports missing sources) and formats
-  `IndexReport` (counts, ≤ 10 types per artifact without sources, `failed to index:` lines).
-- AOT training: `Main.run` sees `jdoc.aotTraining` → `TrainingWorkload.runFile` → one fresh `JdocCli` (and
-  `CompositionRoot`) per workload line; only exit 3 counts as failure.
+  `IndexReport` (counts, up to `TYPES_PER_ARTIFACT` types per artifact without sources, `failed to index:` lines).
+- AOT training: `Main.run` sees `jdoc.aotTraining` → `TrainingWorkload.runFile`; see
+  [`build-and-delivery.md`](build-and-delivery.md).
 
 ## Tests
 
@@ -148,30 +148,28 @@ Shared prefix for every command: `Main.main` → `Main.run` → `JdocCli.forEnvi
   `LookupScopesTest`; helpers `AppIndex` (real temp index of `AppSources`, a mini JDK + shapes library),
   `FakeModuleContext`, `CommandTestSupport`.
 - Unit, `cli/`: `CommandLineParserTest`, `HelpTextTest`, `CommandLineTextTest`, `JdocCliTest` (with
-  `FakeApplication`), `TrainingWorkloadTest`, `TrainingLibraryTest`, `TrainingLibrarySourcesTest`; `MainTest` (root
-  package; calls `Main.run`, never `main`).
+  `FakeApplication`); `MainTest` (root package; calls `Main.run`, never `main`). The training tests are in
+  [`build-and-delivery.md`](build-and-delivery.md).
 - `lookup/LookupIT` — every service end to end on `testsupport.SampleLibrary` indexed by the real `JarArtifactIndexer`
-  (`SampleLibraryIndexer`): sources, javadoc-only and decompiled types, real Vineflower (~2 s).
+  (`SampleLibraryIndexer`): sources, javadoc-only and decompiled types, real Vineflower.
 - `lookup/JdkFindIT` — indexes the real JDK `src.zip`; camel-hump member find (`oET`, `gOD`) and a warm-time bound.
-- `cli/EndToEndIT` (~15 s, indexes the real JDK `src.zip`) — every command and exit code through `JdocCli` with a fake
+- `cli/EndToEndIT` (slow, indexes the real JDK `src.zip`) — every command and exit code through `JdocCli` with a fake
   `mvn` script and `FakeMavenRepo`: Duration ambiguity, JDK-first shadowing, paging footer, `--from`, jar refresh,
   STALE and UNRESOLVED fallbacks, `index --force`, the fat jar (`builtFatJarRuns`), two concurrent first runs.
 - `cli/HotPathClassLoadingIT` (slow, child JVMs on the fat jar with `-Xlog:class+load`) — lookups (and `source` of
   members with source text) load no javac, jsoup, ASM or Vineflower; control: `source` of a decompiled type does.
-- `cli/TrainingLibraryIT` — the generator writes the three flavours. `cli/InstallerIT` and `cli/BenchStartupScriptIT`
-  live in this package but test `dist/` and `scripts/` (area E); both are slow.
+- `cli/TrainingLibraryIT`, `cli/InstallerIT` and `cli/BenchStartupScriptIT` live in this package but test the
+  training, `dist/` and `scripts/`: see [`build-and-delivery.md`](build-and-delivery.md).
 - Fat-jar ITs skip when `target/.../jdoc.jar` is missing; prerequisites go through `testsupport.Prerequisites`, which
   fails instead of skipping when `CI=true`.
 
 ## Extension points
 
-- **New command:** add a constant to `cli.JdocCommand` (name, argument, help, options, `call` branch), a method on
-  `app.Application` + `CommandApplication`, a `LookupCommand` in `app`, and if needed a service in
-  `lookup.LookupServices.create`. `HelpText` picks it up from the enum; update `dist/skill` (area E) and `EndToEndIT`.
-- **New option:** a constant in `cli.OptionDefinition`, add it to `JdocCommand.options()`, read it in
-  `CommandLineParser.invocation` into `Invocation`.
+- **New command / new option:** the recipes (files, tests, docs) are in `docs/ARCHITECTURE.md`. The exact spots:
+  `JdocCommand.call`, `JdocCommand.options()`, `CommandLineParser.invocation`, `lookup.LookupServices.create`.
 - **Output format:** per-command formatting lives in the `app` command classes plus `Headers`, `LookupOutcomes`,
-  `ClassViewFormatter`, `DocLines`; column alignment, header line and pagination are in `text` (area A).
+  `ClassViewFormatter`, `DocLines`; column alignment, header line and pagination are in `text`
+  ([`foundation.md`](foundation.md)).
 - **Component swaps:** everything is wired in `cli.CompositionRoot`; boundaries for fakes are `app.ModuleContext`,
   `app.LookupServicesFactory`, `lookup.JarEntryReader`, `decompile.DecompiledSourceProvider`, the `index`
   repository interfaces.
@@ -199,8 +197,8 @@ Shared prefix for every command: `Main.main` → `Main.run` → `JdocCli.forEnvi
   no src.zip")`.
 - **Protected inherited members** are hidden on final, sealed, enum and record types (`TypeMembers.canBeSubclassed`
   reads the `modifiers` text; `non-sealed` stays subclassable); `jdoc method` on one exits 1 with an explanatory line.
-- **`find` truncation** is flagged both when hits exceed 200 and when the member row scan hits `MEMBER_SCAN_LIMIT`
-  (5,000). The index prefilters use ASCII-only `LIKE`, so non-ASCII pattern characters are dropped from the SQL side.
+- **`find` truncation** is flagged both when hits exceed `MAX_HITS` and when the member row scan hits
+  `MEMBER_SCAN_LIMIT`. The index prefilters use ASCII-only `LIKE`, so non-ASCII pattern characters are dropped from the SQL side.
   A pattern with a `.` matches type display names and skips members; camel humps apply only if the pattern has an
   upper-case letter.
 - **Output streams:** not-found and page-out-of-range text go to stdout (exit 1); only exit-3 errors and classpath

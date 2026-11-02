@@ -1,4 +1,8 @@
-# Code map: build and delivery
+# Code map: build and delivery (`dist/`, `scripts/`, the build, `testsupport`)
+
+Paths are relative to `src/main/java/io/github/vecluu/jdoc/` (tests: `src/test/java/io/github/vecluu/jdoc/`) unless they start
+with `src/`. Binding rules, runtime flows, change recipes and the test map are in
+[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); behaviour is in [`docs/SPEC.md`](../SPEC.md) (distribution and startup). Neither is repeated here.
 
 ## Purpose
 
@@ -20,16 +24,17 @@ licence reasoning is in `docs/decisions/licensing.md`.
     against `target/classes` (not the shaded jar) and passes system properties: `jdoc.projectRoot`, `jdoc.shadedJar`,
     `jdoc.runtimeDependencies` (`LicenseNoticesIT`), `jdoc.itFixtureJars` (`Jdk8JavadocParameterNamesIT`),
     `jdoc.mavenHome`, `jdoc.localRepository`, `jdoc.offlinePlugins` (`RealMavenResolutionIT`).
-  - dependency plugin: `list` (package) writes `runtime-dependencies.txt`; `copy` (pre-integration-test) fetches
-    commons-lang3 3.5 jar + javadoc jar into `it-fixture-jars/`.
+  - dependency plugin: `list` (package) writes `runtime-dependencies.txt`; `copy` (pre-integration-test) fetches an
+    old commons-lang3 jar + javadoc jar (JDK 8 javadoc layout) into `it-fixture-jars/`.
   - shade (package) replaces `jdoc.jar` in place: drops signatures, `module-info`, dependency `META-INF/NOTICE*` and
     licences (Apache licence resource transformer), adds root `LICENSE`, `NOTICE`, `THIRD-PARTY-NOTICES` under
     `META-INF/`, manifest `Main-Class`, `Multi-Release`, `Enable-Native-Access: ALL-UNNAMED`,
     `Implementation-Version: ${project.version}`.
   - jar plugin `forceCreation=true`; resources plugin pinned (see Gotchas).
-  - `project.build.outputTimestamp` fixed (`2026-01-01T00:00:00Z`); profile `source-date-epoch` (active when env
+  - `project.build.outputTimestamp` fixed; profile `source-date-epoch` (active when env
     `SOURCE_DATE_EPOCH` is set) uses that value instead.
-- `.mvn/wrapper/maven-wrapper.properties` — script-only wrapper (no wrapper jar), Maven 3.9.16; `mvnw` at the root.
+- `.mvn/wrapper/maven-wrapper.properties` — script-only wrapper (no wrapper jar) that pins the Maven version; `mvnw`
+  at the root.
 - `.mvn/jvm.config` — `--sun-misc-unsafe-memory-access=allow` for Maven's own JVM on JDK 25.
 - `LICENSE` (Apache-2.0), `NOTICE` (jdoc + sqlite-jdbc attribution), `THIRD-PARTY-NOTICES` (one `[id]` section per
   bundled component, incl. the three Vineflower plugin jars' contents), `CHANGELOG.md` (Keep a Changelog; the
@@ -56,7 +61,7 @@ licence reasoning is in `docs/decisions/licensing.md`.
 - `it/sample-project/` — one Maven module: commons-lang3 (sources jar), commons-codec (javadoc jar only), jspecify
   (binary only, decompiled); dependency plugin pinned; `Greeter.java` is the `--from` target.
 
-### Java: AOT training and version (package `cli`, owned by area D, described here for the install flow)
+### Java: AOT training and version (package `cli`; the rest of `cli` is in `lookup-and-cli.md`)
 
 - `cli.TrainingWorkload` — runs a workload file (one command per line, `#` comments) in one JVM, a fresh `JdocCli`
   per command; exit 3 only if some command exited 3. Reached via system property `jdoc.aotTraining`
@@ -93,7 +98,7 @@ licence reasoning is in `docs/decisions/licensing.md`.
   `mvn -o dependency:list`).
 - The installer also calls sqlite-jdbc's OSInfo class (`java -cp jdoc.jar org.sqlite.util.OSInfo`) to name the native
   library folder inside the jar.
-- `testsupport` is used by the tests of almost every package (areas A–D); it depends on `model` (`Gav`,
+- `testsupport` is used by the tests of almost every package; it depends on `model` (`Gav`,
   `ResolvedDependency`, `Scope`, `TypeName`) and `config.JdocEnvironment`.
 - ITs that exercise this area from Java live in other packages (`cli`, root, `module`, `indexer`), see Tests.
 
@@ -133,16 +138,17 @@ else per-user `cds/jdoc.jsa` (created dir; a file without the dynamic-archive ma
 warnings to stderr and silence `aot`/`cds` messages.
 
 **CI** (`build.yml`, `build` job, every PR and push to `main`): checkout → Temurin 25 → install shellcheck/dash if
-missing → version step (tag `v*` → tag version; dispatch input `release-dry-run` → that version; else
+missing → version step (dispatch input `release-dry-run` → that version; else tag `v*` → tag version; else
 `0.0.0-<sha7>`; on tag/dry run `release-notes.sh` fails fast if the CHANGELOG section is missing; exports
 `SOURCE_DATE_EPOCH` = commit time) → `./mvnw -B -ntp -Drevision=$VERSION verify` (with `CI=true`, so missing IT
 prerequisites fail) → `assemble.sh` → `install-test.sh out/jdoc-$VERSION.tar.gz it/sample-project` with
 `INSTALL_TEST_REQUIRE_DASH=1` (which runs `smoke-test.sh` through the installed launcher) → upload `out/`.
 
-**Release** (`release` job, `v*` tag or dispatch with `release-dry-run`): download artifact `jdoc-*` → check `out/`
-holds exactly the tarball and `SHA256SUMS`, `sha256sum -c` → notes from `release-notes.sh` → (publish only) attest
-the tarball (SLSA provenance) → `gh release create v$VERSION … --verify-tag --notes-file …` (`--prerelease` if the
-version has `-`; tag must equal `v$VERSION`); a dry run prints the command instead. The release job is the only job
+**Release** (`release` job, push of a `v*` tag or dispatch with `release-dry-run`): download artifact `jdoc-*` →
+check `out/` holds exactly the tarball and `SHA256SUMS`, `sha256sum -c` → notes from `release-notes.sh` → (publish
+only, i.e. a push of a `v*` tag; a dispatch never publishes) attest the tarball (SLSA provenance) →
+`gh release create v$VERSION … --verify-tag --notes-file …` (`--prerelease` if the version has `-`; tag must equal
+`v$VERSION`); a dry run prints the command instead. The release job is the only job
 with write permissions. Tagging steps and how to verify a release: `docs/RELEASING.md`.
 
 ## Tests
@@ -162,12 +168,10 @@ All under `src/test/java/io/github/vecluu/jdoc/`. ITs that need the fat jar run 
   `dist/bin/jdoc`, `scripts/*.sh` (this replaced a separate CI step).
 - `cli.BenchStartupScriptIT` — runs `scripts/bench-startup.sh` with one run per row; expects every command row plus
   the three `new-dep` rows.
-- `cli.HotPathClassLoadingIT` (slow: indexes the JDK) — lookups on the fat jar load no javac/jsoup/ASM/Vineflower.
-- `cli.EndToEndIT` — `builtFatJarRuns`, `twoFirstRunsAtOnceBothSucceed` spawn the shaded jar.
+- `cli.HotPathClassLoadingIT` and `cli.EndToEndIT` also spawn the shaded jar; they are described in
+  `lookup-and-cli.md`.
 - `cli.TrainingWorkloadTest`, `cli.TrainingLibraryTest`, `cli.TrainingLibrarySourcesTest` (unit),
   `cli.TrainingLibraryIT` (three flavours, jar contents, POMs, scratch dir removed).
-- `module.RealMavenResolutionIT` — real Maven (the one running the build, `jdoc.mavenHome`) offline, pinning
-  `jdoc.offlinePlugins`; `indexer.Jdk8JavadocParameterNamesIT` — uses `jdoc.itFixtureJars`.
 - `testsupport.LibraryFixturesIT` (fixture jars, fake repo, fake mvn script), `testsupport.PrerequisitesTest`.
 - Not part of `verify`: `scripts/smoke-test.sh` and `scripts/install-test.sh` (run by CI after `verify`; they need
   network once to prime a private repository) and `scripts/bench-startup.sh` measurements.
@@ -183,8 +187,8 @@ All under `src/test/java/io/github/vecluu/jdoc/`. ITs that need the fat jar run 
   `TrainingLibrarySources`; flavours in `TrainingLibrary.Flavour`. Measure with `bench-startup.sh` before/after.
 - **New runtime dependency**: `pom.xml` + a `THIRD-PARTY-NOTICES` section + `LicenseNoticesIT.OWNERS` entries
   (the IT forces this); the dependency list is fixed (`docs/ARCHITECTURE.md`).
-- **New IT needing a tool or external file**: guard it with `Prerequisites.require` (never a bare assumption), and let
-  the build provide files (failsafe system property, dependency-plugin execution) rather than reading `~/.m2`.
+- **New IT needing an external file**: let the build provide it (failsafe system property, dependency-plugin
+  execution) rather than reading `~/.m2`; guard it with `Prerequisites` (rule in `docs/ARCHITECTURE.md` "Tests").
 - **New smoke scenario**: add a dependency flavour to `it/sample-project/pom.xml` and its priming/assertions to
   `smoke-test.sh`.
 
@@ -205,23 +209,21 @@ All under `src/test/java/io/github/vecluu/jdoc/`. ITs that need the fat jar run 
   falls back (safe). Re-running `install.sh` is the only way to rebuild the AOT cache; the fallback archive holds only
   the classes of the call that created it.
 - **JDK 25 crash during `AOTMode=create`** (rare SIGSEGV in training-data handling): the installer retries once with
-  `-XX:-AOTRecordTraining`; that cache is ~2–3 ms slower per lookup. Keep the retry even on a fixed JDK.
+  `-XX:-AOTRecordTraining`; that cache is slightly slower per lookup. Keep the retry even on a fixed JDK.
 - **Training must stay offline and isolated**: temp `JDOC_CACHE`, `JDOC_M2_REPO`, fake `mvn`, `JAVA_HOME` = the PATH
   java's home. The record run must not load javac/javadoc for generation, which is why `TrainingLibrary` runs in its
   own JVM first. `AOTMode=create` does not run the application.
 - **Launcher is `sh`, installer is `bash`**: `bin/jdoc` must stay POSIX (tested under dash); JVM args are prepended
   with `set --` so user arguments with spaces pass through. Do not print anything on stdout from the launcher.
-- **install.sh `usage()`** prints lines 5–10 of the file (`sed -n '5,10…'`): editing the header comment shifts it.
+- **install.sh `usage()`** prints a fixed line range of the file with `sed -n`: editing the header comment shifts it.
 - **install-test.sh fails on any `warning`** in the installer output and on any unexpected tar entry; CI also fails
   when dash is missing. A generator or training fallback therefore fails CI even though users get a working install.
 - **Fake `mvn` contract**: it copies `deps.list` from the current directory; jdoc must run Maven in the module
   directory. The same snippet is duplicated in `install.sh`, `bench-startup.sh` and `InstallerIT`.
 - **Fat-jar location in ITs**: `fatJar()` is duplicated in `InstallerIT`, `BenchStartupScriptIT`,
   `HotPathClassLoadingIT` and `EndToEndIT` (`<parent of test-classes>/jdoc.jar`), so it honours `-Djdoc.buildDir`.
-- **Test naming**: never start a test class with `Test` (surefire's default includes `**/Test*.java`; the fixture IT
-  is `LibraryFixturesIT` for that reason).
 - **Smoke-test facts**: `class StringUtils` is ambiguous (lang3 and codec) and asserted as exit 2; the smoke test
   checks jdoc wrote nothing into the project (`target/` must not appear).
-- **Release workflow**: the release job's `PUBLISH` is "ref is a `v*` tag", and the version step prefers the tag over
-  the dry-run input, so a manual dispatch on a tag ref publishes even with `release-dry-run` set. Dispatch dry runs
-  on a branch. The CHANGELOG section for the version must exist before tagging (checked before the build).
+- **Release workflow**: only a `push` of a `v*` tag publishes (`PUBLISH` checks the event and the ref); the version
+  step prefers the `release-dry-run` input over a tag, so a dispatch with it is a dry run on any ref, a tag included.
+  The CHANGELOG section for the version must exist before tagging (checked before the build).

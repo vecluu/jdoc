@@ -1,8 +1,8 @@
 # Code map: resolution and index (`module`, `index`)
 
-Binding rules (package dependencies, immutability, error wrapping, environment access) are in
-[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); this file only maps the code. Paths are relative to
-`src/main/java/io/github/vecluu/jdoc/` (tests: `src/test/java/io/github/vecluu/jdoc/`).
+Paths are relative to `src/main/java/io/github/vecluu/jdoc/` (tests: `src/test/java/io/github/vecluu/jdoc/`) unless they start
+with `src/`. Binding rules, runtime flows, change recipes and the test map are in
+[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); behaviour is in [`docs/SPEC.md`](../SPEC.md) (version resolution, cache layout). Neither is repeated here.
 
 ## Purpose
 
@@ -27,7 +27,7 @@ POM analysis (POM key and reactor)
 - `ParsingPomAnalyzer` — parses: `PomKeyCalculator` + `ReactorDetector`.
 - `SnapshotPomAnalyzer` — the hot-path wrapper. It reuses a stored `ModuleSnapshot` while every path the last
   parse touched still has the same `PathStamp`. Otherwise it parses under `RecordingPomFiles.record` and stores a new
-  snapshot (only once the touched files have been unchanged for `SETTLE_TIME`, 2 s).
+  snapshot (only once the touched files have been unchanged for `SETTLE_TIME`).
 - `PomKeyCalculator` — SHA-256 over the module dir path, the module POM and the local ancestor POMs (path + content
   hash). A SNAPSHOT parent from the repository adds its repo POM's mtime → `PomKey(value, List<PomFingerprint>)`.
 - `ReactorDetector` — walks up through aggregators (parent-dir POM listing this dir) and local parents, then down
@@ -42,12 +42,12 @@ POM analysis (POM key and reactor)
   recording; thread-confined).
 - Stamps: `PathStamper` / `NioPathStamper`. A stamp is `absent`, `dir`, or `file:size:mtimeNs:ctimeNs:dev:ino` from the
   unix attribute view, else basic attributes plus the file key. The value type is `PathStamp`.
-- Snapshot storage: `ModuleSnapshot`, `ModuleSnapshotCodec` (tab-separated lines, `FORMAT_VERSION` 1),
+- Snapshot storage: `ModuleSnapshot`, `ModuleSnapshotCodec` (tab-separated lines, `FORMAT_VERSION`),
   `ModuleSnapshotStore` / `FileModuleSnapshotStore` (`<cache>/module-snapshots/<fnv1a64(moduleDir)>.txt`).
 
 Maven
 - `MavenInvoker` (interface) / `ProcessMavenInvoker` — child process with merged output captured to a debug log and stdin
-  closed. It sets `JAVA_HOME` and kills the process after `DEFAULT_TIMEOUT` (5 min). Values: `MavenCommand`, `MavenResult`
+  closed. It sets `JAVA_HOME` and kills the process after `DEFAULT_TIMEOUT`. Values: `MavenCommand`, `MavenResult`
   (`summary()` = first `[ERROR]` line).
 - `MavenDependencyLister` — builds and runs `-o -q -B dependency:list -DincludeScope=test
   -DoutputAbsoluteArtifactFilename=true -DoutputFile=…`. Strategy: plain run in the module dir; the reactor form
@@ -70,9 +70,9 @@ Cache and fallbacks
 
 - `IndexDatabase` — one JDBC connection (thread-confined). `open(CachePaths)`, `open(Path, Duration busyTimeout)` and
   `openInBackground(CachePaths)` (a daemon thread; the first `connection()` waits and rethrows). It sets WAL,
-  `foreign_keys`, `synchronous=NORMAL` and a 60 s busy timeout, and checks `PRAGMA user_version`. `inTransaction` /
+  `foreign_keys`, `synchronous=NORMAL` and a busy timeout, and checks `PRAGMA user_version`. `inTransaction` /
   `runInTransaction` use `BEGIN IMMEDIATE`; nested calls join the outer transaction.
-- `Schema` (package-private) — DDL list + `VERSION` (currently 4). Tables: `artifacts`, `failed_artifacts`,
+- `Schema` (package-private) — DDL list + `VERSION`. Tables: `artifacts`, `failed_artifacts`,
   `types`, `supertypes`, `members`, `type_docs`, `member_docs`, `package_docs`.
 - Repositories (interface / JDBC class, each built from an `IndexDatabase`):
   - `ArtifactRepository` / `JdbcArtifactRepository` — `save` deletes the row with the same key (cascade), then
@@ -82,17 +82,17 @@ Cache and fallbacks
     `listNames` (all, or prefiltered by a `LIKE` subsequence on `NameColumn`), `listPackages`. Others:
     `findWithoutSources`, `countByArtifact`. Returns `IndexedType` with full supertypes, or `TypeRef`.
   - `SupertypeRepository` / `JdbcSupertypeRepository` — read-only: `supertypesOf`, `directSubtypesOf` (direct edges).
-  - `MemberRepository` / `JdbcMemberRepository` — `insertAll(Map<typeId, List>)` (batches of `BATCH_SIZE` 1000),
+  - `MemberRepository` / `JdbcMemberRepository` — `insertAll(Map<typeId, List>)` (batches of `BATCH_SIZE`),
     `membersOf`, `findByName` (NOCASE), `searchByName`, `listNames(scope, subsequence)`, `findByNames`.
   - `DocRepository` / `JdbcDocRepository` — rendered `RenderedDoc` blobs per type, member and package. Large batches are
     encoded in parallel.
   - `FailedArtifactRepository` / `JdbcFailedArtifactRepository` — `failed_artifacts` rows (`FailedArtifact`, with
     `matches(path, mtime, size)`).
 - `IndexLock` (interface, `Lease`) / `FileIndexLock` — a fair in-process ReentrantLock plus an OS FileChannel.tryLock
-  on `<cache>/lock`, polled with backoff up to `DEFAULT_TIMEOUT` (10 min). Reentrant per thread.
+  on `<cache>/lock`, polled with backoff up to `DEFAULT_TIMEOUT`. Reentrant per thread.
 - Package-private helpers: `SqlRunner` (statements, SQLException → `IndexException`), `Rows`, `IdList` (scope as one
   JSON-array parameter: `col IN (SELECT value FROM json_each(?))`, plus `LIKE` pattern escaping), `ParameterCodec`
-  (`name␟type␟erased` joined by `␞`), `DocCodec` (flag byte + varint/UTF-8 body, raw deflate when ≥ 160 bytes and smaller).
+  (`name␟type␟erased` joined by `␞`), `DocCodec` (flag byte + varint/UTF-8 body, raw deflate for longer bodies when that is smaller).
 
 ## Collaborations
 
@@ -136,7 +136,7 @@ JDK id. An empty scope returns empty without a query.
 
 ## Tests
 
-- `module/*Test` (20 classes, ~130 tests, fast): one per class. Fakes: `FakeMavenInvoker` (scripted results,
+- `module/*Test` (fast): one per class. Fakes: `FakeMavenInvoker` (scripted results,
   records commands), `PomFixtures` (writes POMs). `SnapshotPomAnalyzerTest` uses a fresh parse as the oracle and covers
   edits with restored mtime, replaced files, appearing aggregators, SNAPSHOT parents and the racy guard.
   `DepsFileParserTest` also parses real plugin output (`src/test/resources/io/github/vecluu/jdoc/module/real-dependency-list.txt`).
@@ -145,17 +145,16 @@ JDK id. An empty scope returns empty without a query.
 - `module/RealMavenResolutionIT` — a **real Maven**, offline, temp multi-module project. It covers an uninstalled
   sibling resolved through the reactor command. It skips locally and fails in CI when prerequisites are missing
   (`testsupport.Prerequisites`); this is the slowest test in the area (several Maven runs).
-- `index/*Test` (12 classes, ~75 tests) against real SQLite files in `@TempDir`; `IndexFixtures` builds rows.
+- `index/*Test` against real SQLite files in `@TempDir`; `IndexFixtures` builds rows.
   `IndexDatabaseConcurrencyTest`: 8 threads open a fresh file at once (the SQLITE_BUSY regression).
 - `index/IndexLockIT` — thread vs thread and process vs process; the child process is `index.LockHolderMain`, started with
-  the test classpath. `index/BulkInsertIT` — 20k types / 200k members (time bound 30 s; the slowest index test).
-- Elsewhere: `indexer.ClasspathIndexerIT`, `lookup.JdkFindIT` and `cli.EndToEndIT` exercise the real store end to end.
-  `EndToEndIT` runs two concurrent first runs; `cli.HotPathClassLoadingIT` asserts what stays unloaded on a lookup.
+  the test classpath. `index/BulkInsertIT` — a JDK-sized artifact within a time bound (the slowest index test).
+- The ITs in other packages that use the real store end to end are in the test map of `docs/ARCHITECTURE.md`.
 
 ## Extension points
 
-- **Schema change:** edit `Schema.STATEMENTS` and bump `Schema.VERSION` (Javadoc lists v2–v4). Also bump it when the
-  *stored content* changes (v4 changed only signatures). Old files are dropped and rebuilt; there are no migrations.
+- **Schema change:** edit `Schema.STATEMENTS` and bump `Schema.VERSION` (its Javadoc lists what each version
+  changed). Also bump it when only the *stored content* changes (signatures, docs). Old files are dropped and rebuilt; there are no migrations.
 - **Analysis change:** if `PomKeyCalculator` or `ReactorDetector` compute something else or read other files, bump
   `ModuleSnapshotCodec.FORMAT_VERSION`. Otherwise stale snapshots keep serving the old analysis.
 - New POM inputs must go through `PomHierarchy.files()`. A file read around it is not stamped, so its changes go unnoticed.
@@ -175,7 +174,7 @@ JDK id. An empty scope returns empty without a query.
 - The POM key includes the module **path**, so two checkouts never share `modules/<key>/`. Old key dirs are never
   pruned (they feed the STALE fallback).
 - The STALE fallback matches `meta.json` by the module's *real* path; `ModuleLocator` must keep returning real paths.
-- The racy-timestamp guard: right after an edit (< 2 s), every call parses and nothing is stored. This is intended.
+- The racy-timestamp guard: right after an edit (within `SETTLE_TIME`), every call parses and nothing is stored. This is intended.
   ctime in the stamp catches same-size edits with a restored mtime.
 - Reactor modules are removed from every classpath (matched by `groupId:artifactId`, any version). The reactor command
   exists because `-pl x -am` without `test-compile` cannot resolve uninstalled siblings in Maven 3.
@@ -183,8 +182,8 @@ JDK id. An empty scope returns empty without a query.
 - `IndexDatabase` is **one connection, one thread**. The indexer's parallel parsing feeds a single writer thread.
 - WAL is switched on *after* connecting, and open steps are retried on SQLITE_BUSY/LOCKED. Setting WAL in
   sqlite-jdbc config broke concurrent first opens of a fresh file.
-- `openInBackground` looks up its logger lazily. A static `@Slf4j` field would initialise slf4j (~12 ms) before the
-  thread starts.
+- `openInBackground` looks up its logger lazily. A static `@Slf4j` field would initialise slf4j on the calling thread
+  before the background thread starts.
 - `JdbcTypeRepository.insertAll` assigns ids as `max(id)+1…`. That is safe only because `BEGIN IMMEDIATE` holds the
   write lock. Never insert types outside `inTransaction`.
 - `insertMemberDocs` finds members by `(type_id, position)`. Positions restart at 0 on each `insertAll` call, so

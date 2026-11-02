@@ -83,20 +83,111 @@ section and `LicenseNoticesIT.OWNERS` entries (`docs/decisions/licensing.md`).
 | Lombok (provided) | boilerplate |
 | JUnit Jupiter, AssertJ (test) | tests; no Mockito |
 
-## Runtime flow (one call)
+## Runtime flows
 
-1. `Main` → `cli.JdocCli` parses the arguments; `cli.CompositionRoot` builds the services from `JdocEnvironment` and
-   starts opening `index.db` on a background thread (the first query waits for it).
-2. `module.ClasspathResolver` → `ModuleClasspath` (cache hit: `deps.txt`; miss: Maven). The POM key and reactor come
-   from a per-module snapshot while every file the POM analysis touched keeps its stamp.
+Chains of key classes, from `Main` to output. The area maps' "Flows" sections hold the detail and the edge cases.
+
+### Every command (shared prefix)
+
+1. `Main` → `cli.JdocCli` parses the arguments (`cli.CommandLineParser`); `cli.CommandRunner` asks
+   `cli.CompositionRoot` for the `app.Application`, which builds the services from `JdocEnvironment` and starts
+   opening `index.db` on a background thread (the first query waits for it).
+2. `cli.JdocCommand.call` → the `app` command → `app.IndexingModuleContext`: `module.ClasspathResolver` →
+   `ModuleClasspath` (cache hit: `deps.txt`; miss: Maven). The POM key and reactor come from a per-module snapshot
+   while every file the POM analysis touched keeps its stamp.
 3. `indexer.ClasspathIndexer` makes sure the JDK and every jar on the classpath is indexed and current (stat, re-index
-   only changed jars, under the file lock).
-4. The `app` service for the command asks `lookup`, scoped to those artifact ids. Every command except `source`
-   answers from SQLite alone; `source` reads the jar entry and cuts the member by its stored offsets, parsing or
-   decompiling only when needed.
-5. The `CommandResult` (exit code and lines) goes back to `cli`, which paginates with `text` and prints.
+   only changed jars, under the file lock) → `app.LookupScopes` → fresh `lookup.LookupServices`.
+4. The command asks `lookup`, scoped to those artifact ids. Every command except `source` answers from SQLite alone.
+5. The `app.CommandResult` (exit code and lines) goes back to `cli.ResultPrinter`, which paginates with
+   `text.Paginator` and prints; `Application.close` closes the database.
 
-Per-command chains, the indexing flow and the install-time AOT training: see the area maps.
+`--help` and `--version` stop after the parser (`cli.HelpText`, `cli.ManifestVersion`): no application, no index.
+
+### Per command (after the prefix)
+
+| Command | Chain | Map |
+| --- | --- | --- |
+| `find` | `app.FindCommand` (`query.NamePattern` validates) → `lookup.FindService` → `TypeRepository.listNames` / `MemberRepository.searchByName` | [lookup-and-cli](codemap/lookup-and-cli.md) |
+| `class` | `app.ClassCommand` → `lookup.TypeResolver` → `lookup.ClassViewService` (`TypeMembers`, `TypeHierarchy`, `DocLoader`) → `app.ClassViewFormatter` | [lookup-and-cli](codemap/lookup-and-cli.md) |
+| `method` | `app.MethodCommand` → `lookup.MemberLookupService` (`TypeResolver`, `query.OverloadMatcher`) → `DocLoader.memberDoc` (`DocInheritance`) → `app.DocLines` | [lookup-and-cli](codemap/lookup-and-cli.md) |
+| `source` | `app.SourceCommand` → `MemberLookupService` → `lookup.SourceLoader`: sources → `lookup.JarEntryReader` + `source.MemberSourceSlicer`; otherwise `decompile.DecompiledSourceProvider` → `source.JavaSourceParser` → slice | [lookup-and-cli](codemap/lookup-and-cli.md), [indexing](codemap/indexing.md) |
+| `impls` | `app.ImplsCommand` → `TypeResolver` → `TypeHierarchy.subtypes` → `SupertypeRepository.directSubtypesOf` | [lookup-and-cli](codemap/lookup-and-cli.md) |
+| `member` | `app.MemberCommand` → `lookup.MemberSearchService` → `MemberRepository.findByName` | [lookup-and-cli](codemap/lookup-and-cli.md) |
+| `package` | `app.PackageCommand` → `lookup.PackageService` → `TypeRepository.findByPackage`, `DocLoader.packageDoc` | [lookup-and-cli](codemap/lookup-and-cli.md) |
+| `index` | `app.IndexCommand` → `indexer.IndexOptions.indexCommand` → `ClasspathIndexer` → `indexer.IndexReport` | [indexing](codemap/indexing.md) |
+
+### Index build
+
+`indexer.ClasspathIndexer` (stat each jar, take `index.IndexLock` only when something is stale) → per jar
+`indexer.JarArtifactIndexer`: `bytecode.ZipBinaryJarScanner` → `indexer.SiblingDocJarLocator` →
+`indexer.SqliteIndexStore.replace` (one transaction) running `indexer.TypeDocResolver` per top-level type: sources
+(`source.JavaSourceParser`, `javadoc.DocCommentRenderer`), else javadoc jar (`javadoc.JavadocJarReader`), else
+bytecode only. The JDK: `indexer.DefaultJdkIndexer` → `indexer.JdkSourceZipProducer`, or `indexer.JrtBytecodeProducer`
+without `src.zip`. Detail: `docs/codemap/indexing.md`; storage: `docs/codemap/resolution-and-index.md`.
+
+### Install-time AOT training and launcher start
+
+- **Install:** `dist/install.sh` → `cli.TrainingLibrary` in its own JVM (writes the training library) → a recording
+  JVM with `-Djdoc.aotTraining=<workload>` → `Main` → `cli.TrainingWorkload` (one fresh `JdocCli` per workload line)
+  → AOT cache and its fingerprint key next to the installed jar.
+- **Start:** `dist/bin/jdoc` → `java` from the PATH → the AOT cache if its key matches, else a per-user dynamic CDS
+  archive, else none → `-jar jdoc.jar` → `Main`.
+
+Detail: `docs/codemap/build-and-delivery.md`; why: `docs/decisions/startup.md`.
+
+## Change recipes
+
+Files and tests a typical change touches, in order. The area maps' "Extension points" name the exact methods.
+
+**Add a command.**
+1. `lookup`: a service if the question is new, wired in `lookup.LookupServices`.
+2. `app`: a `LookupCommand` (or a separate class like `app.IndexCommand`) and a method on `app.Application` and
+   `app.CommandApplication`.
+3. `cli`: a constant in `cli.JdocCommand` (name, argument, help lines, options, `call` branch); `cli.HelpText` picks
+   it up.
+4. Tests: a `*CommandTest` in `app`, the service's `*Test`, a case in `cli.EndToEndIT`; if it is a lookup, a row in
+   `cli.HotPathClassLoadingIT`.
+5. `dist/install.sh`: a line in the training `workload`, so the AOT cache covers it.
+6. Docs: `docs/SPEC.md` "Commands", `README.md`, `dist/skill/SKILL.md` and `dist/AGENTS-snippet.md`, the
+   per-command table above, `docs/codemap/lookup-and-cli.md`.
+
+**Add a CLI option.** `cli.OptionDefinition` → `cli.JdocCommand` (accepted options) → `cli.CommandLineParser` into
+`cli.Invocation` → the `app.Application` method. Tests: `CommandLineParserTest`, `HelpTextTest`, `JdocCliTest`, an
+`EndToEndIT` case if it changes results. Docs: `docs/SPEC.md` "Commands", `README.md`, the skill if agents should use
+it.
+
+**Add a doc source or change the fallback order.** `model.DocSource` (constant, `headerTag()`) →
+`indexer.TypeDocResolver` → the `DocSource` switches in `lookup.SourceLoader` and `lookup.DocLoader` → bump
+`index.Schema.VERSION`. Tests: `TypeDocResolverTest`, `indexer.ArtifactIndexerIT`, `lookup.LookupIT`; a new fixture
+flavour goes into `testsupport.SampleLibrary`. Docs: `docs/SPEC.md` "Doc sources", `docs/codemap/indexing.md`.
+
+**Change the index schema or what is stored.** `index.Schema` (statements, bump `VERSION`) → the repository interface
+and its `Jdbc*` class → the writer `indexer.SqliteIndexStore` → the `lookup` readers. Any change to stored text
+(signatures, docs, parameter names, entry paths) bumps `VERSION` too. Tests: the repository `*Test`,
+`indexer.ArtifactIndexerIT`, `index.BulkInsertIT` for bulk paths. Docs: `docs/codemap/resolution-and-index.md`;
+`docs/SPEC.md` "Index, cache and refresh" if users see it.
+
+**Change an output format.** Per command: the `app` command classes, `app.Headers`, `app.LookupOutcomes`,
+`app.ClassViewFormatter`, `app.DocLines`. Shared: `text.ResultHeader`, `text.ColumnLayout`, `text.Paginator`.
+Signatures are rendered twice and stored, so a signature change touches `source.SignatureFormat` and
+`bytecode.MemberDescriptorFactory` alike and bumps `index.Schema.VERSION`. Tests: the `*CommandTest`s,
+`text.ResultHeaderTest`, `bytecode.SampleLibraryBytecodeIT`, `cli.EndToEndIT`. Docs: `docs/SPEC.md` "Commands" and
+"Signature format", `README.md` examples, the skill if it quotes output.
+
+**Change the launcher or the installer.** `dist/bin/jdoc` (POSIX `sh`) or `dist/install.sh` (`bash`). Bundle contents
+change `scripts/assemble.sh`, the expected entries in `scripts/install-test.sh` and `cli.InstallerIT` together. Tests:
+`cli.InstallerIT` (also runs shellcheck), then `scripts/install-test.sh` on an assembled bundle. Docs:
+`docs/codemap/build-and-delivery.md`, `README.md` install steps, `docs/SPEC.md` "Distribution and startup",
+`docs/decisions/startup.md` when the cache strategy changes.
+
+**Add a dependency.** Only with the orchestrator. `pom.xml` → a `THIRD-PARTY-NOTICES` section (and `NOTICE` if the
+licence asks for it) → `LicenseNoticesIT.OWNERS` entries → the Dependencies table above. Keep it off the hot path
+unless lookups need it (`cli.HotPathClassLoadingIT`). Reasoning: `docs/decisions/licensing.md`.
+
+**Rename or move a class, package or file.** Update this file's package table and the area maps; `CodeMapIT` lists
+every stale name with its file and line.
+
+**Cut a release.** `docs/RELEASING.md`.
 
 ## Tests
 
@@ -112,3 +203,43 @@ Per-command chains, the indexing flow and the install-time AOT training: see the
   `testsupport.Prerequisites`: it skips locally when missing and fails in CI (`CI=true`). Never a bare JUnit
   assumption for that.
 - Tests that index the whole JDK `src.zip` are ITs only.
+
+## Test map
+
+Which integration test guards which behaviour. Unit tests (`*Test`) sit next to every class and are listed per
+package in the area maps. **Slow** marks ITs that index the real JDK, run real Maven or spawn installs and JVMs.
+
+| IT | Guards | Notes |
+| --- | --- | --- |
+| `LicenseNoticesIT` | the shaded jar's licence files and `THIRD-PARTY-NOTICES` cover every bundled entry and runtime dependency | needs `package` |
+| `CodeMapIT` | the docs name existing packages, types and files | reads the working tree only |
+| `text.PaginationScenarioIT` | a large result pages within the token budget and concatenates back to the whole | |
+| `module.ClasspathResolverIT` | resolution with a fake `mvn`: cache hit, re-resolve after a POM edit, STALE, reactor retry, UNRESOLVED | |
+| `module.RealMavenResolutionIT` | the Maven command lines work against a real, offline Maven, including an uninstalled reactor sibling | slow; prerequisites |
+| `index.IndexLockIT` | the indexing lock excludes threads and processes | spawns a JVM |
+| `index.BulkInsertIT` | bulk inserts of a JDK-sized artifact stay fast | slow |
+| `source.SampleLibraryParseIT` | the fixture sources jar parses; stored ranges slice their members | |
+| `source.JdkSourceParseIT` | all of `java.base` parses | slow |
+| `bytecode.SampleLibraryBytecodeIT` | bytecode signatures equal source-parsed ones, member by member | |
+| `bytecode.JdkJmodSmokeIT` | all of `java.base` reads through `jrt:/` | slow |
+| `javadoc.JavadocJarIT` | javadoc-jar docs equal the source rendering; real parameter names | |
+| `decompile.VineflowerDecompilerIT` | decompiled fixture types parse, are deterministic and cached | |
+| `indexer.ArtifactIndexerIT` | the per-type doc-source fallback into real SQLite, supertypes across artifacts, re-index replaces | |
+| `indexer.ClasspathIndexerIT` | refresh, force, the lock, concurrent indexers, broken jars, remembered failures | |
+| `indexer.JdkIndexerIT` | the full `src.zip` index and the `jrt:/` fallback | slow |
+| `indexer.Jdk8JavadocParameterNamesIT` | the legacy (JDK 8) javadoc layout | fixture jars from the build |
+| `lookup.LookupIT` | every lookup service on the indexed sample library, including real Vineflower | |
+| `lookup.JdkFindIT` | camel-hump `find` on the real JDK | slow |
+| `cli.EndToEndIT` | every command and exit code through `JdocCli`: fallbacks, paging, `--from`, refresh, concurrent first runs, the fat jar | slow |
+| `cli.HotPathClassLoadingIT` | lookups load no javac, jsoup, ASM or Vineflower | slow; fat jar |
+| `cli.TrainingLibraryIT` | the AOT training library generator writes all flavours | |
+| `cli.InstallerIT` | install, AOT cache use and fallbacks, training failures, shellcheck of `dist/` and `scripts/` | slow; fat jar |
+| `cli.BenchStartupScriptIT` | `scripts/bench-startup.sh` runs and reports every row | slow; fat jar |
+| `testsupport.LibraryFixturesIT` | the shared fixtures: jars, fake repository, fake `mvn` | |
+
+Not part of `verify`: `scripts/smoke-test.sh` and `scripts/install-test.sh` (CI runs them after `verify`).
+
+**Fixtures.** `testsupport` (`TestLibrary`, `SampleLibrary`, `FakeMavenRepo`, `TestEnvironments`, `JarWriter`,
+`Prerequisites`), described in `docs/codemap/build-and-delivery.md`; the sample library's sources under
+`src/test/resources/io/github/vecluu/jdoc/testsupport/sample-lib/`; `it/sample-project` for the scripts; fixture jars
+the build downloads (`jdoc.itFixtureJars`). Per-package fakes are listed in the area maps.

@@ -1,9 +1,8 @@
 # Code map: foundation (`config`, `model`, `error`, `query`, `text`)
 
-Packages below `io.github.vecluu.jdoc`; paths are relative to `src/main/java/io/github/vecluu/jdoc/` unless they
-start with `src/`. Binding rules (dependency direction, immutability, error policy) are in
-[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md), signature format and exit codes in [`docs/SPEC.md`](../SPEC.md);
-neither is repeated here.
+Paths are relative to `src/main/java/io/github/vecluu/jdoc/` (tests: `src/test/java/io/github/vecluu/jdoc/`) unless they start
+with `src/`. Binding rules, runtime flows, change recipes and the test map are in
+[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md); behaviour is in [`docs/SPEC.md`](../SPEC.md) (signature format, exit codes). Neither is repeated here.
 
 ## Purpose
 
@@ -93,12 +92,12 @@ cache layout; `error` is the unchecked exception hierarchy. `query` (parsing and
 
 - `text.TextResult` — one header line + ordered `text.TextBlock`s (lines kept together on one page where
   possible); `TextResult.builder(header)` with `line`/`lines`/`block`/`blankLine`. Lines must not contain `\n`/`\r`.
-- `text.Paginator` — cuts a `TextResult` to a `text.TokenBudget` (default 2,000 tokens, 4 chars per token,
-  newlines counted). Fits → one page, no footer; else each `text.Page` repeats the header and ends with a
-  `text.PageFooter` line (`page 1/3 · next: <command line> --page 2`). `page(result, n, cmd)` returns
+- `text.Paginator` — cuts a `TextResult` to a `text.TokenBudget` (`TokenBudget.DEFAULT_MAX_TOKENS`, 4 chars per
+  token, newlines counted). Fits → one page, no footer; else each `text.Page` repeats the header and ends with a
+  `text.PageFooter` line (wording in `docs/SPEC.md` "Commands"). `page(result, n, cmd)` returns
   `text.PageOutcome` (`Shown` | `OutOfRange` with the user message).
-- `text.ColumnLayout` — two-column alignment (`ColumnLayout.Row`), left column padded to the widest entry up to a
-  cap (48), gap 2, no trailing spaces; widths in code points.
+- `text.ColumnLayout` — two-column alignment (`ColumnLayout.Row`), left column padded to the widest entry up to
+  `DEFAULT_MAX_LEFT_WIDTH`, then `DEFAULT_GAP`, no trailing spaces; widths in code points.
 - `text.ResultHeader` — the type header line: `displayName<T>  modifiers keyword  (artifact label)  [doc-source
   tag]  [version unresolved]`, built from a `TypeDescriptor` and `ArtifactKey.label()`.
 - `text.Lines` — package-private single-line check and printed-size helper.
@@ -137,8 +136,8 @@ cache layout; `error` is the unchecked exception hierarchy. `query` (parsing and
   `Relative.matches(TypeName)`.
 - **Member argument → members:** `lookup.MemberLookupService` → `MemberReferenceParser.parse` → type part as above
   → the type's members from `lookup.TypeMembers` (own and inherited) filtered by `OverloadMatcher.matches(reference, descriptor)`.
-- **find:** `app.FindCommand` (rejects a blank pattern via `NamePattern.parse`) → `lookup.FindService` (camel-hump path only if
-  `usesCamelHumps()`) → hits ranked by `NameMatch` then name.
+- **Find pattern:** `NamePattern.parse` (blank → `ParseResult.Failure`) → `NamePattern.match` per name → hits ranked
+  by `NameMatch`; `usesCamelHumps()` tells `lookup.FindService` which index prefilter to use.
 - **Output:** `app` command → `TextResult` (header from `ResultHeader.line()`, rows via `ColumnLayout`) →
   `app.CommandResult` → `cli.ResultPrinter` → `Paginator.page(result, --page, command line)` → `Page.text()` to
   stdout, or `PageOutcome.OutOfRange.message()` with exit 1.
@@ -156,7 +155,7 @@ All under `src/test/java/io/github/vecluu/jdoc/<package>/`; all unit tests are p
   `OverloadMatcherTest`, `ParseResultTest`, `NamePatternTest` (hump cases, lower-case patterns not humps).
 - `text`: `PaginatorTest`, `PageFooterTest`, `TokenBudgetTest`, `TextResultTest`, `ColumnLayoutTest`,
   `ResultHeaderTest`.
-- Only IT: `text.PaginationScenarioIT` — a ~25k-character class view under the default budget: every page within
+- Only IT: `text.PaginationScenarioIT` — a class view several pages long under the default budget: every page within
   budget and pages concatenate back to the full body. Fast (no jars, no database).
 - Test environments for other packages are built with `testsupport.TestEnvironments` (a `JdocEnvironment` rooted in
   a `@TempDir`), which is why `JdocEnvironment.from(env, properties)` must stay side-effect free.
