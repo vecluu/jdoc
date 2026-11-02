@@ -119,10 +119,10 @@ class SampleLibraryParseIT {
     void shapeMembers() {
         ParsedType shape = type(SampleLibrary.SHAPE);
         assertThat(apiSignatures(shape)).containsExactly(
-                "static final String DEFAULT_UNIT",
-                "abstract double area()",
-                "abstract String name()",
-                "abstract Shape scale(double factor)",
+                "String DEFAULT_UNIT",
+                "double area()",
+                "String name()",
+                "Shape scale(double factor)",
                 "default String describe()",
                 "default int compareTo(Shape other)",
                 "static Shape unit()");
@@ -240,7 +240,7 @@ class SampleLibraryParseIT {
                 "Entry(String name, Shape shape)", "String toString()", "int hashCode()", "boolean equals(Object o)",
                 "String name()", "Shape shape()");
         assertThat(apiSignatures(type(SampleLibrary.SHAPES_VISITOR))).containsExactly(
-                "abstract R visitCircle(Circle circle)", "abstract R visitOther(Shape shape)");
+                "R visitCircle(Circle circle)", "R visitOther(Shape shape)");
     }
 
     @Test
@@ -260,7 +260,7 @@ class SampleLibraryParseIT {
     @Test
     void experimentalAnnotation() {
         assertThat(apiSignatures(type(SampleLibrary.EXPERIMENTAL)))
-                .containsExactly("abstract String value()", "abstract String since()");
+                .containsExactly("String value()", "String since()");
     }
 
     @Test

@@ -65,7 +65,7 @@ class ZipBinaryJarScannerTest {
         Path jar = jar();
 
         assertThat(scanner.readClass(jar, TypeName.of("b.B"))).map(c -> c.members().getFirst().signature())
-                .contains("abstract void run()");
+                .contains("void run()");
         assertThat(scanner.readClass(jar, TypeName.of("a.Missing"))).isEmpty();
         assertThat(scanner.readClass(jar, TypeName.of("a.A$1"))).isEmpty();
         assertThat(scanner.readClass(jar, TypeName.of("c.Broken"))).isEmpty();

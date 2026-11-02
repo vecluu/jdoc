@@ -223,7 +223,7 @@ final class CompilationUnitExtractor {
         return declared(MemberDescriptor.builder()
                 .name(name)
                 .kind(MemberKind.FIELD)
-                .signature(signatures.field(visibility, isStatic, isFinal,
+                .signature(signatures.field(visibility, isStatic && !inInterface, isFinal && !inInterface,
                         types.render(variable.getType(), type.scope()), name))
                 .visibility(visibility)
                 .isStatic(isStatic), variable, comment, doc, type);
@@ -258,7 +258,7 @@ final class CompilationUnitExtractor {
             builder.name(name)
                     .kind(MemberKind.METHOD)
                     .isStatic(isStatic)
-                    .signature(signatures.method(visibility, isStatic, style(flags, inInterface, method),
+                    .signature(signatures.method(visibility, isStatic, style(flags, inInterface),
                             typeParameters, types.render(method.getReturnType(), scope), name, parameters, thrown));
         }
         return declared(builder.parameters(parameters), method, comment, doc, type);
@@ -322,13 +322,15 @@ final class CompilationUnitExtractor {
         return components;
     }
 
-    private static SignatureFormat.MethodStyle style(Set<Modifier> flags, boolean inInterface, MethodTree method) {
+    /**
+     * {@code default} for default methods; {@code abstract} only for abstract methods of classes: interface and
+     * annotation methods without a body are abstract implicitly, so the keyword would be noise (also when written).
+     */
+    private static SignatureFormat.MethodStyle style(Set<Modifier> flags, boolean inInterface) {
         if (flags.contains(Modifier.DEFAULT)) {
             return SignatureFormat.MethodStyle.DEFAULT;
         }
-        boolean implicitAbstract = inInterface && method.getBody() == null
-                && !flags.contains(Modifier.STATIC) && !flags.contains(Modifier.PRIVATE);
-        return flags.contains(Modifier.ABSTRACT) || implicitAbstract
+        return flags.contains(Modifier.ABSTRACT) && !inInterface
                 ? SignatureFormat.MethodStyle.ABSTRACT
                 : SignatureFormat.MethodStyle.PLAIN;
     }

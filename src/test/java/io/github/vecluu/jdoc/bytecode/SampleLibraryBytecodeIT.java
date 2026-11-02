@@ -3,6 +3,7 @@ package io.github.vecluu.jdoc.bytecode;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.vecluu.jdoc.model.DocSource;
+import io.github.vecluu.jdoc.model.Gav;
 import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.TypeDescriptor;
 import io.github.vecluu.jdoc.model.TypeName;
@@ -12,6 +13,7 @@ import io.github.vecluu.jdoc.source.ParsedMember;
 import io.github.vecluu.jdoc.source.ParsedType;
 import io.github.vecluu.jdoc.testsupport.BuiltLibrary;
 import io.github.vecluu.jdoc.testsupport.SampleLibrary;
+import io.github.vecluu.jdoc.testsupport.TestLibrary;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,10 +60,10 @@ class SampleLibraryBytecodeIT {
     @Test
     void fullMemberList() {
         assertThat(signatures(SampleLibrary.SHAPE)).containsExactly(
-                "static final String DEFAULT_UNIT",
-                "abstract double area()",
-                "abstract String name()",
-                "abstract Shape scale(double factor)",
+                "String DEFAULT_UNIT",
+                "double area()",
+                "String name()",
+                "Shape scale(double factor)",
                 "default String describe()",
                 "default int compareTo(Shape other)",
                 "static Shape unit()");
@@ -108,7 +110,7 @@ class SampleLibraryBytecodeIT {
                 "Entry(String name, Shape shape)", "String toString()", "int hashCode()", "boolean equals(Object o)",
                 "String name()", "Shape shape()");
         assertThat(signatures(SampleLibrary.SHAPES_VISITOR)).containsExactly(
-                "abstract R visitCircle(Circle circle)", "abstract R visitOther(Shape shape)");
+                "R visitCircle(Circle circle)", "R visitOther(Shape shape)");
         assertThat(signatures(SampleLibrary.BOX)).containsExactly(
                 "Box()",
                 "Box<T> put(T item)",
@@ -117,7 +119,7 @@ class SampleLibraryBytecodeIT {
                 "<U extends Shape> Box<U> map(Function<? super T, ? extends U> mapper)",
                 "protected void beforePut(T item)");
         assertThat(signatures(SampleLibrary.EXPERIMENTAL)).containsExactly(
-                "abstract String value()", "abstract String since()");
+                "String value()", "String since()");
         assertThat(signatures(SampleLibrary.OLD_SHAPES)).containsExactly("static double sum(Shape a, Shape b)");
         assertThat(signatures(SampleLibrary.SHAPE_CACHE)).containsExactly("int size()");
     }
@@ -150,9 +152,69 @@ class SampleLibraryBytecodeIT {
 
     @Test
     void matchesSourceParsing() {
+        assertThat(scanned).containsKeys(SampleLibrary.SHAPE, SampleLibrary.SHAPES_VISITOR, SampleLibrary.EXPERIMENTAL);
+        assertMatchesSourceParsing(scanned, SampleLibrary.sources());
+    }
+
+    @Test
+    void interfaceMembersMatchSourceParsing(@TempDir Path dir) {
+        Map<String, String> sources = Map.of(
+                "p/Api.java", """
+                        package p;
+                        /** Api. */
+                        public interface Api<T> extends Comparable<Api<T>> {
+                            /** Explicit modifiers. */
+                            public static final int LIMIT = 3;
+                            /** Implicit modifiers. */
+                            String NAME = "n";
+                            /** Explicit abstract. */
+                            public abstract void run();
+                            /** Implicit abstract. */
+                            T get(int index, String... rest);
+                            /** Default. */
+                            default <U> U map(java.util.function.Function<? super T, U> f) { return null; }
+                            /** Static. */
+                            static <T> Api<T> empty() { return null; }
+                            /** Nested. */
+                            interface Inner { void accept(Object value); int SIZE = 1; }
+                        }
+                        """,
+                "p/Marker.java", """
+                        package p;
+                        /** Marker. */
+                        public @interface Marker { String value() default ""; Class<?>[] types(); int MAX = 9; }
+                        """,
+                "p/Holder.java", """
+                        package p;
+                        /** Holder. */
+                        public abstract class Holder {
+                            /** A class constant. */
+                            public static final int MIN = 0;
+                            /** Abstract method. */
+                            protected abstract void run(int times);
+                            /** Nested interface of a class. */
+                            public interface Callback { abstract void done(boolean ok); }
+                        }
+                        """);
+        BuiltLibrary library = TestLibrary.builder(Gav.of("t", "api", "1")).sources(sources).parameters(true)
+                .withSources(false).withJavadoc(false).build().writeTo(dir);
+        Map<TypeName, ScannedClass> binary = new LinkedHashMap<>();
+        new ZipBinaryJarScanner().scan(library.binaryJar(), c -> binary.put(c.type().name(), c));
+
+        assertMatchesSourceParsing(binary, sources);
+        assertThat(binary.get(TypeName.of("p.Api")).members().stream().map(MemberDescriptor::signature))
+                .containsExactly("int LIMIT", "String NAME", "void run()", "T get(int index, String... rest)",
+                        "default <U> U map(Function<? super T, U> f)", "static <T> Api<T> empty()");
+        assertThat(binary.get(TypeName.of("p.Holder")).members().stream().map(MemberDescriptor::signature))
+                .contains("static final int MIN", "protected abstract void run(int times)");
+        assertThat(binary.get(TypeName.of("p.Holder$Callback")).members().getFirst().signature())
+                .isEqualTo("void done(boolean ok)");
+    }
+
+    private static void assertMatchesSourceParsing(Map<TypeName, ScannedClass> scanned, Map<String, String> sources) {
         Map<TypeName, ParsedType> sourceTypes = new HashMap<>();
         try (JavaSourceParser parser = new JavaSourceParser()) {
-            SampleLibrary.sources().forEach((path, text) -> parser.parse(new JavaSource(path, text,
+            sources.forEach((path, text) -> parser.parse(new JavaSource(path, text,
                     DocSource.SOURCES)).types().forEach(type -> sourceTypes.put(type.name(), type)));
         }
 

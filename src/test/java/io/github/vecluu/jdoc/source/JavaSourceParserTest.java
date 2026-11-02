@@ -182,10 +182,10 @@ class JavaSourceParserTest {
         assertThat(type.descriptor().modifiers()).isEqualTo("public");
         assertThat(type.descriptor().supertypes())
                 .containsExactly(TypeName.of("java.lang.Comparable"), TypeName.of("java.io.Serializable"));
-        assertThat(signature(type, "LIMIT")).isEqualTo("static final int LIMIT");
+        assertThat(signature(type, "LIMIT")).isEqualTo("int LIMIT");
         assertThat(descriptor(type, "LIMIT").visibility()).isEqualTo(Visibility.PUBLIC);
         assertThat(descriptor(type, "LIMIT").isStatic()).isTrue();
-        assertThat(signature(type, "get()")).isEqualTo("abstract E get()");
+        assertThat(signature(type, "get()")).isEqualTo("E get()");
         assertThat(signature(type, "orElse(Object)")).isEqualTo("default E orElse(E other)");
         assertThat(signature(type, "of(Object)")).isEqualTo("static <E> T<E> of(E e)");
         assertThat(descriptor(type, "get()").visibility()).isEqualTo(Visibility.PUBLIC);
@@ -210,10 +210,38 @@ class JavaSourceParserTest {
                 """);
         assertThat(type.descriptor().kind()).isEqualTo(TypeKind.ANNOTATION);
         assertThat(type.descriptor().supertypes()).containsExactly(TypeName.of("java.lang.annotation.Annotation"));
-        assertThat(signature(type, "value()")).isEqualTo("abstract String value()");
-        assertThat(signature(type, "codes()")).isEqualTo("abstract int[] codes()");
+        assertThat(signature(type, "value()")).isEqualTo("String value()");
+        assertThat(signature(type, "codes()")).isEqualTo("int[] codes()");
         assertThat(descriptor(type, "codes()").visibility()).isEqualTo(Visibility.PUBLIC);
-        assertThat(signature(type, "NAME")).isEqualTo("static final String NAME");
+        assertThat(signature(type, "NAME")).isEqualTo("String NAME");
+    }
+
+    @Test
+    void explicitImplicitInterfaceModifiersAreNotRenderedButAbstractClassMethodsKeepAbstract() {
+        ParsedSourceFile file = parse("""
+                package p;
+                public class T {
+                    public interface Api {
+                        public static final int LIMIT = 3;
+                        public abstract void run();
+                        public static void start() {}
+                        public default void stop() {}
+                    }
+                    public abstract static class Base {
+                        public abstract void run();
+                        public static final int MAX = 1;
+                    }
+                }
+                """);
+        ParsedType api = type(file, "p.T$Api");
+        assertThat(signature(api, "LIMIT")).isEqualTo("int LIMIT");
+        assertThat(descriptor(api, "LIMIT").isStatic()).isTrue();
+        assertThat(signature(api, "run()")).isEqualTo("void run()");
+        assertThat(signature(api, "start()")).isEqualTo("static void start()");
+        assertThat(signature(api, "stop()")).isEqualTo("default void stop()");
+        ParsedType base = type(file, "p.T$Base");
+        assertThat(signature(base, "run()")).isEqualTo("abstract void run()");
+        assertThat(signature(base, "MAX")).isEqualTo("static final int MAX");
     }
 
     @Test

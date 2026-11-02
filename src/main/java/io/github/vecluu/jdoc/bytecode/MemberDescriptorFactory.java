@@ -23,9 +23,10 @@ import org.objectweb.asm.Opcodes;
  * <p>Rules: only public and protected members; synthetic and bridge methods and {@code <clinit>} are skipped;
  * constructors take the simple type name and drop the outer-instance parameter of inner (non-static) classes;
  * enum constants are {@link MemberKind#ENUM_CONSTANT} with signature {@code NAME}; implicit enum {@code values()}
- * and {@code valueOf(String)} are kept. Implicit modifiers are shown, as source parsing does: {@code abstract} for
- * every abstract method (also in interfaces and annotation types), {@code default} for interface instance methods
- * with a body, {@code static final} for interface fields. Generic signatures are preferred; malformed ones fall back to descriptors.
+ * and {@code valueOf(String)} are kept. Implicit interface modifiers are left out, as source parsing does: no
+ * {@code abstract} on interface and annotation methods (it stays on abstract class methods), {@code default} for
+ * interface instance methods with a body, {@code static} for static interface methods, and no {@code static final}
+ * on interface fields. Generic signatures are preferred; malformed ones fall back to descriptors.
  */
 final class MemberDescriptorFactory {
 
@@ -78,10 +79,10 @@ final class MemberDescriptorFactory {
             if (AccessFlags.visibility(access) == Visibility.PROTECTED) {
                 words.add("protected");
             }
-            if (AccessFlags.has(access, Opcodes.ACC_STATIC)) {
+            if (AccessFlags.has(access, Opcodes.ACC_STATIC) && !isInterfaceLike()) {
                 words.add("static");
             }
-            if (AccessFlags.has(access, Opcodes.ACC_FINAL)) {
+            if (AccessFlags.has(access, Opcodes.ACC_FINAL) && !isInterfaceLike()) {
                 words.add("final");
             }
             words.add(renderer.render(fieldType));
@@ -189,16 +190,20 @@ final class MemberDescriptorFactory {
         }
         boolean isStatic = AccessFlags.has(access, Opcodes.ACC_STATIC);
         boolean isAbstract = AccessFlags.has(access, Opcodes.ACC_ABSTRACT);
-        boolean inInterface = type.kind() == TypeKind.INTERFACE || type.kind() == TypeKind.ANNOTATION;
+        boolean inInterface = isInterfaceLike();
         if (isStatic) {
             words.add("static");
         }
-        if (isAbstract) {
+        if (isAbstract && !inInterface) {
             words.add("abstract");
         } else if (!isAbstract && !isStatic && inInterface) {
             words.add("default");
         }
         return words;
+    }
+
+    private boolean isInterfaceLike() {
+        return type.kind() == TypeKind.INTERFACE || type.kind() == TypeKind.ANNOTATION;
     }
 
     private List<ParameterInfo> parameters(RawMethod method, List<JvmType> shown, List<JvmType> erasedShown,

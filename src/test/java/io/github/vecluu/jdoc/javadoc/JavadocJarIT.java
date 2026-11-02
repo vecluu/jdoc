@@ -102,7 +102,7 @@ class JavadocJarIT {
         assertThat(memberDoc(SampleLibrary.SHAPES_REGISTRY,
                 "Shapes.Registry.Entry register(String name, Shape shape)").blockTags())
                 .containsExactly("@param name the name", "@param shape the shape", "@return the new entry");
-        assertThat(memberDoc(SampleLibrary.SHAPES_VISITOR, "abstract R visitCircle(Circle circle)").firstSentence())
+        assertThat(memberDoc(SampleLibrary.SHAPES_VISITOR, "R visitCircle(Circle circle)").firstSentence())
                 .isEqualTo("Visits a circle.");
     }
 
@@ -127,8 +127,8 @@ class JavadocJarIT {
         assertThat(memberDoc(SampleLibrary.COLOR, "BLUE").description()).isEqualTo("Pure blue, a cool color.");
         assertThat(memberDoc(SampleLibrary.POINT, "static final Point ORIGIN").description())
                 .isEqualTo("The origin, `(0, 0)`.");
-        assertThat(memberDoc(SampleLibrary.SHAPE, "static final String DEFAULT_UNIT").blockTags()).isEmpty();
-        assertThat(memberDoc(SampleLibrary.EXPERIMENTAL, "abstract String value()").blockTags())
+        assertThat(memberDoc(SampleLibrary.SHAPE, "String DEFAULT_UNIT").blockTags()).isEmpty();
+        assertThat(memberDoc(SampleLibrary.EXPERIMENTAL, "String value()").blockTags())
                 .containsExactly("@return the reason");
         assertThat(memberDoc(SampleLibrary.CIRCLE, "double diameter()").blockTags()).containsExactly(
                 "@return the diameter", "@deprecated use #radius() times two; will be removed in 2.0");

@@ -96,7 +96,7 @@ class JdkSourceParseIT {
         ParsedType map = type(file, "java.util.Map");
         assertThat(map.descriptor().kind()).isEqualTo(TypeKind.INTERFACE);
         assertThat(map.descriptor().typeParameters()).isEqualTo("<K, V>");
-        assertThat(signature(map, "entrySet()")).isEqualTo("abstract Set<Map.Entry<K, V>> entrySet()");
+        assertThat(signature(map, "entrySet()")).isEqualTo("Set<Map.Entry<K, V>> entrySet()");
         assertThat(signature(map, "getOrDefault(Object,Object)"))
                 .isEqualTo("default V getOrDefault(Object key, V defaultValue)");
         assertThat(signature(map, "ofEntries(Map.Entry[])"))
@@ -105,7 +105,7 @@ class JdkSourceParseIT {
         assertThat(entry.descriptor().modifiers()).isEqualTo("public static");
         assertThat(entry.descriptor().visibility()).isEqualTo(Visibility.PUBLIC);
         assertThat(entry.descriptor().firstSentence()).isEqualTo("A map entry (key-value pair).");
-        assertThat(signature(entry, "getKey()")).isEqualTo("abstract K getKey()");
+        assertThat(signature(entry, "getKey()")).isEqualTo("K getKey()");
         assertThat(signature(entry, "comparingByKey()"))
                 .isEqualTo("static <K extends Comparable<? super K>, V> Comparator<Map.Entry<K, V>> comparingByKey()");
     }
@@ -152,8 +152,8 @@ class JdkSourceParseIT {
     void annotationDeprecated() {
         ParsedType deprecated = type(parse("java/lang/Deprecated.java"), "java.lang.Deprecated");
         assertThat(deprecated.descriptor().kind()).isEqualTo(TypeKind.ANNOTATION);
-        assertThat(signature(deprecated, "since()")).isEqualTo("abstract String since()");
-        assertThat(signature(deprecated, "forRemoval()")).isEqualTo("abstract boolean forRemoval()");
+        assertThat(signature(deprecated, "since()")).isEqualTo("String since()");
+        assertThat(signature(deprecated, "forRemoval()")).isEqualTo("boolean forRemoval()");
     }
 
     @Test

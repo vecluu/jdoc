@@ -13,7 +13,8 @@ import java.util.stream.Collectors;
  *   <li>fields: {@code [protected ][static ][final ]Type NAME}</li>
  *   <li>enum constants: {@code NAME}</li>
  * </ul>
- * Only {@code protected} is shown as an access modifier.
+ * Only {@code protected} is shown as an access modifier. Implicit interface modifiers are left out by the caller:
+ * no {@code abstract} on interface or annotation methods, no {@code static final} on interface fields.
  */
 final class SignatureFormat {
 

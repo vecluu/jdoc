@@ -269,7 +269,7 @@ class ClassFileReaderTest {
     }
 
     @Test
-    void interfaceMembersShowImplicitModifiers() {
+    void interfaceMembersOmitImplicitModifiers() {
         ScannedClass scanned = read("p/Api.java", """
                 package p;
                 public interface Api {
@@ -281,8 +281,22 @@ class ClassFileReaderTest {
                 }
                 """).get("p.Api");
 
-        assertThat(signatures(scanned)).containsExactly("static final String NAME", "abstract void run()",
+        assertThat(signatures(scanned)).containsExactly("String NAME", "void run()",
                 "default int size()", "static Api create()");
+        assertThat(member(scanned, "NAME").isStatic()).isTrue();
+    }
+
+    @Test
+    void abstractClassMethodsKeepAbstractAndClassConstantsKeepStaticFinal() {
+        ScannedClass scanned = read("p/Base.java", """
+                package p;
+                public abstract class Base {
+                    public static final int MAX = 1;
+                    public abstract void run();
+                }
+                """).get("p.Base");
+
+        assertThat(signatures(scanned)).contains("static final int MAX", "abstract void run()");
     }
 
     @Test
@@ -297,8 +311,8 @@ class ClassFileReaderTest {
                 }
                 """, "-parameters");
 
-        assertThat(signatures(types.get("p.Things$Tag"))).containsExactly("abstract String value()",
-                "abstract int[] codes()");
+        assertThat(signatures(types.get("p.Things$Tag"))).containsExactly("String value()",
+                "int[] codes()");
         assertThat(types.get("p.Things$Pair").type().typeParameters()).isEqualTo("<A, B>");
         assertThat(signatures(types.get("p.Things$Pair"))).contains(
                 "static final Things.Pair<String, String> EMPTY",
