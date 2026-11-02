@@ -236,6 +236,8 @@ jdoc-1.2.0/
 
 `.github/workflows/build.yml`:
 
+> Release path (T27): the jar and tarball are reproducible from `SOURCE_DATE_EPOCH` (commit time in CI); the release job uploads only the tarball and `SHA256SUMS`, checks the checksum and that the tag matches the version, attests the tarball, and uses the `CHANGELOG.md` section (via `scripts/release-notes.sh`) as release notes. A `workflow_dispatch` input `release-dry-run=<version>` runs the release job without attesting or publishing.
+>
 > Implemented by T18 in `.github/workflows/build.yml`; the draft below is historical. The real workflow builds with `./mvnw`, pins actions to commit SHAs, runs shellcheck on all scripts, runs the install test from the assembled tarball (launcher also exercised under `dash`) and the smoke test through the installed launcher. The installer copies `LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES` to `<prefix>/share/doc/jdoc/`.
 
 ```yaml
