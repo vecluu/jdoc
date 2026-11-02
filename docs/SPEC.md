@@ -163,7 +163,7 @@ compiler cannot check; not for common JDK calls or calls the project already mak
 
 ## Known limitations
 
-The current gaps. `CHANGELOG.md` copies this list into each release; the backlog is in `tasks/README.md`.
+The current gaps. `CHANGELOG.md` copies this list into each release; the backlog is in the GitHub issues.
 
 - Linux only, and Java 25 must be the `java` on `PATH`. Tested on x86_64; aarch64 is untested.
 - Maven projects only; dependencies must already be in the local repository. Docs need `-sources.jar` or

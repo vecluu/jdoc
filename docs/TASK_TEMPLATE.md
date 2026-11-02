@@ -1,6 +1,9 @@
 # Txx — <Title: what changes, in a few words>
 
-<!-- Template for a task brief. A brief says what and why, never how in code: no code, no class bodies.
+Issue: #N
+
+<!-- Template for a task brief, a local file `tasks/Txx-<slug>.md` (ignored by git). The Issue line names the
+     GitHub issue the task works on. A brief says what and why, never how in code: no code, no class bodies.
      Keep it to one screen where possible. Delete the comments and any section that does not apply. -->
 
 **Owns:** <packages (main and test), or files for non-Java work, e.g. `lookup`, `dist/install.sh`, `InstallerIT`>.
@@ -42,10 +45,10 @@ Out of scope: <tempting neighbouring changes that belong to another task>.
 
 - `./mvnw -B verify -Djdoc.buildDir=target/Txx` passes with no new skipped tests.
 - <the observable check, e.g. before/after output of one command, a measurement, a CI run on a draft PR>.
-- Notes in `tasks/notes/Txx.md` (see `tasks/AGENT_GUIDE.md`, "When you finish"), with a proposed commit split.
+- Notes in `tasks/notes/Txx.md` (see `docs/AGENT_GUIDE.md`, "When you finish"), with a proposed commit split.
 - <docs that must change: docs/SPEC.md, docs/ARCHITECTURE.md or an area map, README, licence notices>.
 
 ## Rules
 
-Follow `tasks/AGENT_GUIDE.md`. <Task-specific rules: may push a throwaway branch with a draft PR to test CI;
+Follow `docs/AGENT_GUIDE.md`. <Task-specific rules: may push a throwaway branch with a draft PR to test CI;
 do not tag; ask before ...>

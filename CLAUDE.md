@@ -9,8 +9,8 @@ dependencies a module uses. User-facing docs: `README.md`.
 | --- | --- |
 | What jdoc does, why, what it does not do (known limitations) | `docs/SPEC.md` |
 | How the code is built: packages, binding rules, test rules, flows | `docs/ARCHITECTURE.md`, then `docs/codemap/<area>.md` for your area |
-| Rules for an implementing agent | `tasks/AGENT_GUIDE.md` |
-| Workflow, tasks in flight, backlog | `tasks/README.md`; brief shape `tasks/TEMPLATE.md` |
+| Rules for an implementing agent | `docs/AGENT_GUIDE.md`; brief shape `docs/TASK_TEMPLATE.md` |
+| Backlog: bugs, features, tasks | GitHub issues (labels `area:<area>`, one per area map) |
 | Cutting a release | `docs/RELEASING.md` |
 | Why a past decision was made (startup, skill trigger, licences) | `docs/decisions/` |
 
@@ -30,15 +30,23 @@ Use the Maven wrapper (`./mvnw`); it needs JDK 25.
 - Scripts and end-to-end checks (`scripts/smoke-test.sh`, `scripts/install-test.sh`) are described in `README.md`,
   "Building from source".
 
+## Workflow
+
+GitHub issue → local brief → implementing agent → notes → orchestrator verifies (`./mvnw -B verify`), commits and
+keeps the docs below current. The maintainer approves each wave of briefs (disjoint files per wave), every push and
+every GitHub write; only the orchestrator writes to GitHub. `tasks/` holds briefs (header `Issue: #N`), agent notes
+and the wave board; it is local and ignored by git, so the public trace of a task is its issue and its commits.
+
 ## Commits, pushes, releases
 
 - Commit messages: Conventional Commits with a gitmoji, `<gitmoji> <type>(<scope>): <subject>`, for example
   `🐛 fix(index): ...`. One scoped, compiling change per commit; split unrelated changes.
+- Issue numbers go in commit messages, never in code or docs (links to external bug reports
+  are fine): `Refs #N` on work commits, `Closes #N` on the task's last commit.
 - Only the orchestrating session commits. Implementing agents do not commit, push or branch (unless their brief
   allows a throwaway CI branch); they propose a commit split in their notes.
 - Ask the maintainer before every push to `main`, every tag and every release. Exception: to test CI, push a
   throwaway branch and open a draft PR; close it and delete the branch afterwards.
-- Work is organised as task briefs in waves, each wave approved by the maintainer (`tasks/README.md`).
 
 ## Keep these current
 

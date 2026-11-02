@@ -2,7 +2,8 @@
 
 You implement one task brief of jdoc. `CLAUDE.md` (build, test and commit rules) is already loaded. Read, in order:
 
-1. Your brief, `tasks/Txx-<slug>.md`.
+1. Your brief, `tasks/Txx-<slug>.md` (a local working file: `tasks/` is ignored by git; the brief's `Issue: #N` line
+   names its GitHub issue).
 2. `docs/ARCHITECTURE.md` (binding rules, package map, test rules), then the area maps in `docs/codemap/` for the
    packages you touch.
 3. The `docs/SPEC.md` sections your brief names, when you change behaviour.
@@ -20,13 +21,17 @@ Read the source of existing classes when you need detail; do not re-implement wh
 - Keep the code compiling; write files completely rather than in broken intermediate states.
 - Do not commit, push, tag or branch (unless your brief allows a throwaway CI branch). Do not delete files you did
   not create. Do not edit `CHANGELOG.md`; it is written at release time.
+- Never write to GitHub: no issues, labels, comments or PR edits. Put follow-ups you find under "Known gaps" in your
+  notes; the orchestrator files them as issues after the maintainer approves.
+- No task or issue numbers in code or committed docs ("T08's resolver", "#12"); describe the thing itself. Links to
+  external bug reports are fine.
 - If your change alters behaviour described in `docs/SPEC.md`, or adds, renames or moves a package or key class,
   update `docs/SPEC.md`, `docs/ARCHITECTURE.md` or the area map in the same task (`CodeMapIT` checks names and paths).
 
 ## When you finish
 
 1. `./mvnw -B -q -Djdoc.buildDir=target/<TASK-ID> verify` passes with no new skipped tests (report honestly if not).
-2. Write `tasks/notes/<TASK-ID>.md` (under ~80 lines): what you built (one line per public class), decisions and
+2. Write `tasks/notes/<TASK-ID>.md` (local, under ~80 lines): what you built (one line per public class), decisions and
    deviations, changes outside your files, known gaps, a test summary, and a proposed commit split
-   (`<gitmoji> <type>(<scope>): <subject>` plus paths).
+   (`<gitmoji> <type>(<scope>): <subject>` plus paths; the orchestrator adds `Refs #N` or `Closes #N`).
 3. Reply to the orchestrator in at most 15 lines: status, test result, notable decisions, open issues. No code.

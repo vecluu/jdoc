@@ -14,8 +14,9 @@ it/sample-project/         small Maven project for the smoke and install tests
 dist/                      bin/jdoc (POSIX launcher), install.sh, skill/SKILL.md, AGENTS-snippet.md
 scripts/                   assemble.sh, smoke-test.sh, install-test.sh, bench-startup.sh, release-notes.sh
 .github/workflows/build.yml  CI and release
-docs/                      SPEC, ARCHITECTURE, RELEASING, codemap/ (area maps), decisions/ (rationale records)
-tasks/                     orchestration: board and backlog, agent guide, brief template, briefs in flight
+docs/                      SPEC, ARCHITECTURE, RELEASING, AGENT_GUIDE, TASK_TEMPLATE, codemap/ (area maps),
+                           decisions/ (rationale records)
+tasks/                     local orchestration files (briefs, notes, wave board); ignored by git
 ```
 
 ## Packages

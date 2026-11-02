@@ -39,8 +39,9 @@ import org.junit.jupiter.api.Test;
  *       {@link CodeMapReferences#pathReference}: starts with a top-level directory such as {@code docs/} or
  *       {@code src/}, or is a root file such as {@code pom.xml} or {@code CLAUDE.md}), and every relative Markdown link
  *       target, exists. Checked in the files above plus {@code CLAUDE.md}, {@code docs/SPEC.md},
- *       {@code docs/RELEASING.md} and {@code tasks/AGENT_GUIDE.md}. Names in {@link #NOT_REPOSITORY_FILES} (files in
- *       the release bundle or the user's project, not in this repository) are not checked.
+ *       {@code docs/RELEASING.md}, {@code docs/AGENT_GUIDE.md} and {@code docs/TASK_TEMPLATE.md}. Names in
+ *       {@link #NOT_REPOSITORY_FILES} (files in the release bundle or the user's project, not in this repository)
+ *       are not checked. Nothing under {@code tasks/} is checked: that directory is local and ignored by git.
  * </ul>
  *
  * <p>Fast and offline: it reads only the working tree. The project root is the failsafe system property
@@ -66,7 +67,7 @@ class CodeMapIT {
     private static final String CODE_MAP_DIRECTORY = "docs/codemap";
     private static final String ARCHITECTURE = "docs/ARCHITECTURE.md";
     private static final List<String> PATH_ONLY_DOCS =
-            List.of("CLAUDE.md", "docs/SPEC.md", "docs/RELEASING.md", "tasks/AGENT_GUIDE.md");
+            List.of("CLAUDE.md", "docs/SPEC.md", "docs/RELEASING.md", "docs/AGENT_GUIDE.md", "docs/TASK_TEMPLATE.md");
 
     private static final String BASE_PATH = "io/github/vecluu/jdoc";
     private static final List<String> SOURCE_ROOTS = List.of("src/main/java", "src/test/java");

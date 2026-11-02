@@ -38,3 +38,6 @@ build/
 .DS_Store
 ### jdoc release staging (scripts/assemble.sh) ###
 /out/
+
+### Orchestration working files (local only) ###
+/tasks/

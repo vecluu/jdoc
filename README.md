@@ -253,7 +253,8 @@ runs the same build and release job but publishes nothing.
 ## Contributing
 
 Rules for contributors and coding agents (build, tests, commit format, how work is organised) are in
-[`CLAUDE.md`](CLAUDE.md); the code structure is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+[`CLAUDE.md`](CLAUDE.md); the code structure is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Bugs, features
+and planned work are tracked as GitHub issues.
 
 ## License
 
