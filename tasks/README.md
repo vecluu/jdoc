@@ -17,7 +17,7 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | 8 | T17 AOT cache, wrapper, installer · T19 Real-Maven validation · T21 License notices | yes (T17: `dist/`; T19: `module`; T21: pom, root license files, one IT) | T16; T19 needs Maven installed |
 | 9 | T18 Release packaging, smoke test, skill files, CI | alone | T17, T19 |
 | 10 | T22 Lookup quality · T23 AOT training covers libraries · T24 Skill design | yes (T22: lookup/rendering/indexer; T23: `dist/install.sh`, training workload; T24: `dist/skill`, `dist/AGENTS-snippet.md`, one doc) | T18 |
-| 11 | T20 Project README | alone | T22, T23, T24 (captures final output, numbers and skill) |
+| 11 | T20 Project README · T25 No skipped tests | yes (T20: `README.md` only; T25: two ITs, test config in pom, CI workflow) | T22, T23, T24 |
 
 ## Status
 
@@ -42,11 +42,12 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | T17 | done | `tasks/notes/T17.md` |
 | T18 | done | `tasks/notes/T18.md` |
 | T19 | done | `tasks/notes/T19.md` |
-| T20 | todo | `tasks/notes/T20.md` |
+| T20 | done (uncommitted) | `tasks/notes/T20.md` |
 | T21 | done | `tasks/notes/T21.md` |
-| T22 | done (uncommitted) | `tasks/notes/T22.md` |
-| T23 | done (uncommitted) | `tasks/notes/T23.md` |
-| T24 | done (uncommitted) | `tasks/notes/T24.md` |
+| T22 | done | `tasks/notes/T22.md` |
+| T23 | done | `tasks/notes/T23.md` |
+| T24 | done | `tasks/notes/T24.md` |
+| T25 | done (uncommitted) | `tasks/notes/T25.md` |
 
 ## Backlog (follow-ups found during implementation; not yet scheduled)
 
@@ -54,8 +55,6 @@ Scheduled from the backlog: T22 (parameter names, find ranking, interface noise)
 
 - Fallback CDS archive only contains the classes of the call that created it (weak if that was `--version`);
   consider training it explicitly or regenerating it after a real lookup (T17 area).
-- CI: `RealMavenResolutionIT` is skipped in CI because the dependency plugin is not in `~/.m2` yet; add a priming
-  step before the build (T18 area).
 - The jar is not byte-reproducible: set `project.build.outputTimestamp` in the pom (from `SOURCE_DATE_EPOCH`/git).
 - The tag-only release job and its attestation step have never run; needs a decision on how to test it (a throwaway
   pre-release tag publishes a public release).
