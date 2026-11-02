@@ -196,8 +196,10 @@ class InstallerIT {
         assertThat(install.err).as("a successful retry is no warning").isEmpty();
         assertThat(prefix.resolve("lib/jdoc.aot")).isRegularFile();
         // The fingerprint names the fake JDK, so the launcher would fall back; the real java maps the cache directly.
+        // The launcher's log flags keep harmless AOT code cache warnings (seen on CI runners) off stdout.
         Path lib = prefix.resolve("lib");
         Run aot = run(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-Xlog:disable", "-Xlog:all=warning:stderr", "-Xlog:aot*=off,cds*=off:stderr",
                 "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-XX:-UsePerfData", "-XX:AOTMode=on",
                 "-XX:AOTCache=" + lib.resolve("jdoc.aot"), "-jar", lib.resolve("jdoc.jar").toString(), "--version"),
                 Map.of());
