@@ -11,8 +11,9 @@
 #
 # Needs Java 25 on PATH (the same `java` the launcher will use). Runs offline. Besides copying the jar it
 #   1. extracts the sqlite native library for this machine once, so no call extracts it to /tmp;
-#   2. trains a JDK AOT cache with the two-step record/create workflow on a throwaway module with a fake `mvn` and a
-#      temporary JDOC_CACHE (no network, no real Maven, the user's cache untouched);
+#   2. trains a JDK AOT cache with the two-step record/create workflow on throwaway modules with a fake `mvn` and a
+#      temporary JDOC_CACHE (no network, no real Maven, the user's cache untouched): the JDK, then a tiny library
+#      generated beforehand in its own JVM (with sources, javadoc only, binary only) in a temporary local repository;
 #   3. writes the cache's fingerprint (JVM flags, `stat` of the jar, java binary and JDK image) next to it.
 # Everything produced lives under the prefix. Re-running the installer rebuilds all of it.
 set -euo pipefail
@@ -38,6 +39,31 @@ impls java.util.List
 source java.util.Optional#orElseThrow
 source java.util.ArrayList#add
 index'
+
+# Library workload, run after the JDK one when the training library could be generated: the first call resolves the
+# second module and indexes its three new jars (sources jar, javadoc jar, binary only), as after adding a dependency.
+library_workload='class jdoc.training.sources.Widget --from ../library
+class jdoc.training.javadoc.Widget --from ../library
+class jdoc.training.binary.Widget --from ../library
+class jdoc.training.sources.Widget$Builder --from ../library
+method jdoc.training.sources.Widget#resize --from ../library
+method jdoc.training.javadoc.Widget#resize --from ../library
+method jdoc.training.binary.Widget#resize --from ../library
+method jdoc.training.javadoc.Gadget#labels --from ../library
+method jdoc.training.sources.Part#withWeight --from ../library
+find Widget --from ../library
+find WiBu --from ../library
+member resize --from ../library
+member label --from ../library
+package jdoc.training.sources --from ../library
+package jdoc.training.javadoc --from ../library
+package jdoc.training.binary --from ../library
+impls jdoc.training.javadoc.Gadget --from ../library
+source jdoc.training.sources.Widget#resize --from ../library
+source jdoc.training.javadoc.Widget#add --from ../library
+source jdoc.training.binary.Widget#resize --from ../library
+source jdoc.training.binary.Mode#round --from ../library
+index --from ../library'
 
 die() {
   echo "install.sh: $*" >&2
@@ -158,16 +184,44 @@ if [ "$train" = 1 ]; then
 EOF
   cat > "$work/bin/mvn" << 'EOF'
 #!/bin/sh
-# Fake mvn for the training run: an empty dependency list.
+# Fake mvn for the training run: the module's deps.list if it has one, else an empty dependency list.
 out=
 for a in "$@"; do case "$a" in -DoutputFile=*) out="${a#-DoutputFile=}" ;; esac; done
-if [ -n "$out" ]; then : > "$out"; fi
+if [ -n "$out" ]; then
+  if [ -f deps.list ]; then cp deps.list "$out"; else : > "$out"; fi
+fi
 exit 0
 EOF
   chmod 755 "$work/bin/mvn"
   printf '%s\n' "$workload" > "$work/workload.txt"
 
-  echo "training the AOT cache (indexes the JDK once, takes a few seconds)..."
+  echo "training the AOT cache (indexes the JDK and a small library once, takes a few seconds)..."
+  # The training library is compiled and documented in its own JVM, so javac and javadoc classes stay out of the
+  # recording. Without it (e.g. a runtime without the javadoc tool) only the JDK workload is trained.
+  mkdir -p "$work/library"
+  trained_on="the JDK"
+  # shellcheck disable=SC2086 # jvm_flags is a list of words on purpose
+  if "$java" $jvm_flags -cp "$lib/jdoc.jar" io.github.vecluu.jdoc.cli.TrainingLibrary "$work/m2" \
+    "$work/library/deps.list" > "$work/library.log" 2>&1; then
+    cat > "$work/library/pom.xml" << 'EOF'
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>jdoc.training</groupId>
+  <artifactId>library</artifactId>
+  <version>1</version>
+  <dependencies>
+    <dependency><groupId>jdoc.training</groupId><artifactId>training-sources</artifactId><version>1.0</version></dependency>
+    <dependency><groupId>jdoc.training</groupId><artifactId>training-javadoc</artifactId><version>1.0</version></dependency>
+    <dependency><groupId>jdoc.training</groupId><artifactId>training-binary</artifactId><version>1.0</version></dependency>
+  </dependencies>
+</project>
+EOF
+    printf '%s\n' "$library_workload" >> "$work/workload.txt"
+    trained_on="the JDK and the training library"
+  else
+    warn "could not generate the training library; the AOT cache covers JDK lookups only. Its log:"
+    tail -n 5 "$work/library.log" >&2 || true
+  fi
   # shellcheck disable=SC2086 # jvm_flags is a list of words on purpose
   if (cd "$work/module" \
     && env JDOC_CACHE="$work/cache" JDOC_M2_REPO="$work/m2" JDOC_MVN="$work/bin/mvn" JAVA_HOME="$java_home" \
@@ -190,7 +244,7 @@ EOF
     chmod 644 "$lib/jdoc.aot.key.tmp"
     mv -f "$lib/jdoc.aot.tmp" "$lib/jdoc.aot"
     mv -f "$lib/jdoc.aot.key.tmp" "$lib/jdoc.aot.key"
-    echo "AOT cache: $lib/jdoc.aot ($(($(stat -c %s "$lib/jdoc.aot") / 1048576)) MB)"
+    echo "AOT cache: $lib/jdoc.aot ($(($(stat -c %s "$lib/jdoc.aot") / 1048576)) MB, trained on $trained_on)"
   else
     rm -f "$lib/jdoc.aot.tmp"
     warn "AOT training failed; jdoc works, but starts slower. Last lines of the training log:"
