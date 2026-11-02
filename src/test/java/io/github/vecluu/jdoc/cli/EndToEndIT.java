@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassWriter;
@@ -37,6 +38,7 @@ import org.objectweb.asm.Opcodes;
  * repository with T01's fixture jars, temp Maven modules and a fake {@code mvn} script ({@code JDOC_MVN}) that copies a
  * prepared {@code deps.txt} (or fails when a marker file exists). The real JDK's {@code src.zip} is indexed once.
  */
+@Tag("slow")
 class EndToEndIT {
 
     private static final Gav SHADOW = Gav.of("com.evil", "shadow", "1.0");

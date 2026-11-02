@@ -19,10 +19,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Inserts a JDK-sized artifact (~20k types, ~200k members) and checks that writes and scoped reads stay fast. */
+@Tag("slow")
 class BulkInsertIT {
 
     private static final int TYPES = 20_000;

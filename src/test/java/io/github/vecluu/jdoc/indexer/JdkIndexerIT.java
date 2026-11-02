@@ -17,10 +17,12 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Indexes the real JDK running the tests ({@code src.zip}, and the {@code jrt:/} fallback) into a temp database. */
+@Tag("slow")
 class JdkIndexerIT {
 
     private static final JdkInfo JDK = new JdkInfoReader().read(Path.of(System.getProperty("java.home")));

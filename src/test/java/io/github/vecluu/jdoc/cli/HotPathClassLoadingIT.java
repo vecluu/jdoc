@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.io.TempDir;
@@ -35,6 +36,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * decompiles and parses, and therefore does load javac.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Tag("slow")
 class HotPathClassLoadingIT {
 
     private static final List<String> FORBIDDEN = List.of("com.sun.source.", "com.sun.tools.javac.", "org.jsoup.",

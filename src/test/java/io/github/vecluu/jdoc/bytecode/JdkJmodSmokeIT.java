@@ -14,9 +14,11 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /** Reads real-world class files of the running JDK through the {@code jrt:/} file system. */
+@Tag("slow")
 class JdkJmodSmokeIT {
 
     private final ClassFileReader reader = new ClassFileReader();

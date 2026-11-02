@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
  * library), silent fallback to the per-user CDS archive after the jar changes, and no sqlite library extracted to the
  * temp dir per call. Linux only. Missing tools skip the tests locally and fail them in CI (see {@link Prerequisites}).
  */
+@Tag("slow")
 class InstallerIT {
 
     private static final String METHOD = "java.util.Optional#orElseThrow";
@@ -171,8 +173,8 @@ class InstallerIT {
     }
 
     /**
-     * A JVM crash while creating the cache (a rare HotSpot SIGSEGV in JDK 25, similar to JDK-8366948; see the gotchas
-     * in {@code docs/codemap/build-and-delivery.md}) is retried once with a fresh recording without training data;
+     * A JVM crash while creating the cache (a rare HotSpot SIGSEGV in JDK 25, similar to JDK-8366948; see the
+     * comment at the retry in {@code dist/install.sh}) is retried once with a fresh recording without training data;
      * the installer says so on stdout, and the cache is complete.
      */
     @Test

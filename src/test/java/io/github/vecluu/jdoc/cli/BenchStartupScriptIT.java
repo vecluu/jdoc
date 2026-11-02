@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.io.TempDir;
  * dependency" scenario on the fat jar, with the script's temporary project, fake {@code mvn} and {@code JDOC_CACHE}
  * inside a test directory.
  */
+@Tag("slow")
 class BenchStartupScriptIT {
 
     private static final List<String> COMMANDS = List.of("--version", "class java.util.Optional",

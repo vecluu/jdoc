@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code jdoc find} with camel-hump patterns against the real JDK {@code src.zip} index, with a generous timing
  * bound on a warm index. Skipped if the JDK running the tests has no {@code src.zip}.
  */
+@Tag("slow")
 class JdkFindIT {
 
     private static final JdkInfo JDK = new JdkInfoReader().read(Path.of(System.getProperty("java.home")));

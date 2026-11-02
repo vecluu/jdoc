@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.io.TempDir;
  * offline run never needs a plugin the build did not download. A missing prerequisite skips the tests locally and
  * fails them in CI (see {@link Prerequisites}).
  */
+@Tag("slow")
 class RealMavenResolutionIT {
 
     static final String MAVEN_HOME_PROPERTY = "jdoc.mavenHome";
