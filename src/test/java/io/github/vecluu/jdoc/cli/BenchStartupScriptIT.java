@@ -13,14 +13,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Keeps {@code scripts/bench-startup.sh} working: one measured run per command on the fat jar, with the script's
- * temporary project, fake {@code mvn} and {@code JDOC_CACHE} inside a test directory.
+ * Keeps {@code scripts/bench-startup.sh} working: one measured run per command and per "first call after adding a
+ * dependency" scenario on the fat jar, with the script's temporary project, fake {@code mvn} and {@code JDOC_CACHE}
+ * inside a test directory.
  */
 class BenchStartupScriptIT {
 
     private static final List<String> COMMANDS = List.of("--version", "class java.util.Optional",
             "method java.util.Optional#orElseThrow", "find HashMap", "member orElseThrow",
-            "source java.util.Optional#orElseThrow");
+            "source java.util.Optional#orElseThrow",
+            "new-dep sources: class bench.fresh.Ledger", "new-dep javadoc: class bench.fresh.Ledger",
+            "new-dep binary: source bench.fresh.Ledgers#of");
 
     @TempDir
     Path tmp;
