@@ -225,6 +225,64 @@ class JavadocPageParserTest {
     }
 
     @Test
+    void readsParameterNamesFromTheLegacySignature() {
+        JavadocTypePage page = parser.parseTypePage(LEGACY, UTIL);
+
+        assertThat(page.members().getFirst().parameters())
+                .contains(List.of(new JavadocParameter("Object...", "values")));
+        assertThat(page.parameterNames(method("of", param("arg0", "Object...", "Object[]"))))
+                .contains(List.of("values"));
+        assertThat(page.parameterNames(method("gone"))).isEmpty();
+    }
+
+    private static final String MODERN_SIGNATURES = """
+            <html><body><main><section class="details"><ul>
+            <li><section class="detail" id="max(T,T)"><h3 id="max(java.lang.Comparable,java.lang.Comparable)">max</h3>
+            <div class="member-signature"><span class="modifiers">public static</span>&nbsp;<span class="type-parameters">&lt;T extends <a href="x/Comparable.html">Comparable</a>&lt;? super T&gt;&gt;</span>&nbsp;<span class="return-type">T</span>&nbsp;<span class="element-name">max</span><wbr><span class="parameters">(T&nbsp;first,
+             T&nbsp;second)</span></div>
+            </section></li>
+            <li><section class="detail" id="copy(java.util.List,int[])"><h3>copy</h3>
+            <div class="member-signature"><span class="return-type">void</span>&nbsp;<span class="element-name">copy</span><wbr><span class="parameters">(<a href="x/Set.html">Set</a>&lt;String&gt;&nbsp;source, int[]&nbsp;target)</span></div>
+            </section></li>
+            <li><section class="detail" id="&lt;init&gt;(java.util.Map.Entry)"><h3>Util</h3>
+            <div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="element-name">Util</span><wbr><span class="parameters">(<a href="x/Map.Entry.html">Map.Entry</a>&lt;String, ?&gt;&nbsp;entry)</span></div>
+            </section></li>
+            <li><section class="detail" id="LIMIT"><h3>LIMIT</h3>
+            <div class="member-signature"><span class="modifiers">static final</span>&nbsp;<span class="return-type">int</span>&nbsp;<span class="element-name">LIMIT</span></div>
+            </section></li>
+            </ul></section></main></body></html>
+            """;
+
+    @Test
+    void readsParameterNamesOnlyForExactlyMatchingMembers() {
+        JavadocTypePage page = parser.parseTypePage(MODERN_SIGNATURES, UTIL);
+        MemberDescriptor constructor = MemberDescriptor.builder().declaringType(UTIL).name("Util")
+                .kind(MemberKind.CONSTRUCTOR).signature("Util(Map.Entry<String, ?> arg0)")
+                .parameters(List.of(param("arg0", "Map.Entry<String, ?>", "Map.Entry")))
+                .visibility(Visibility.PUBLIC).build();
+
+        assertThat(page.parameterNames(
+                method("max", param("arg0", "T", "Comparable"), param("arg1", "T", "Comparable"))))
+                .contains(List.of("first", "second"));
+        assertThat(page.parameterNames(constructor)).contains(List.of("entry"));
+        assertThat(page.parameterNames(field("LIMIT"))).isEmpty();
+        assertThat(page.members().getLast().parameters()).isEmpty();
+        // no exact anchor (only name and arity agree): never guessed
+        assertThat(page.parameterNames(method("max", param("arg0", "long", "long"), param("arg1", "long", "long"))))
+                .isEmpty();
+        assertThat(page.parameterNames(method("max", param("arg0", "T", "Comparable")))).isEmpty();
+    }
+
+    @Test
+    void keepsBytecodeNamesWhenTheShownTypesDisagreeWithTheAnchor() {
+        // the anchor says List, the shown signature says Set: the page is inconsistent, so nothing is taken
+        JavadocTypePage page = parser.parseTypePage(MODERN_SIGNATURES, UTIL);
+
+        assertThat(page.parameterNames(method("copy", param("arg0", "List<String>", "List"),
+                param("arg1", "int[]", "int[]")))).isEmpty();
+    }
+
+    @Test
     void parsesPackagePages() {
         String modern = """
                 <main><div class="header"><h1>Package a.b</h1></div>

@@ -68,6 +68,35 @@ class JavadocJarIT {
     }
 
     @Test
+    void signaturesGiveTheRealParameterNamesOfEveryExecutableMember(@TempDir Path dir) {
+        BuiltLibrary withoutNames = SampleLibrary.builder().withSources(false).withJavadoc(false).build()
+                .writeTo(dir);
+        Map<TypeName, ScannedClass> unnamed = new LinkedHashMap<>();
+        new ZipBinaryJarScanner().scan(withoutNames.binaryJar(), c -> unnamed.put(c.type().name(), c));
+        int checked = 0;
+        for (ScannedClass scanned : unnamed.values()) {
+            if (!reader.hasTypePage(scanned.type().name())) {
+                continue;
+            }
+            JavadocTypePage page = page(scanned.type().name());
+            Map<String, MemberDescriptor> named = new HashMap<>();
+            classes.get(scanned.type().name()).members().forEach(m -> named.put(m.erasedKey(), m));
+            for (MemberDescriptor member : scanned.members()) {
+                if (!member.kind().isExecutable() || member.arity() == 0) {
+                    continue;
+                }
+                List<String> expected = named.get(member.erasedKey()).parameters().stream()
+                        .map(p -> p.name()).toList();
+                assertThat(page.parameterNames(member)).as("names of %s", member.reference()).contains(expected);
+                checked++;
+            }
+        }
+        assertThat(checked).isGreaterThan(20);
+        assertThat(unnamed.get(SampleLibrary.SHAPES).members().getFirst().signature())
+                .isEqualTo("static <T extends Comparable<? super T>> T max(T arg0, T arg1)");
+    }
+
+    @Test
     void typeDocs() {
         RenderedDoc shape = page(SampleLibrary.SHAPE).typeDoc();
         assertThat(shape.firstSentence()).isEqualTo("A two-dimensional shape with an area.");

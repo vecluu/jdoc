@@ -7,8 +7,11 @@ import io.github.vecluu.jdoc.javadoc.JavadocJarReader;
 import io.github.vecluu.jdoc.javadoc.JavadocPageParser;
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.MemberDescriptor;
+import io.github.vecluu.jdoc.model.MemberKind;
+import io.github.vecluu.jdoc.model.ParameterInfo;
 import io.github.vecluu.jdoc.model.RenderedDoc;
 import io.github.vecluu.jdoc.model.TypeName;
+import io.github.vecluu.jdoc.model.Visibility;
 import io.github.vecluu.jdoc.source.JavaSourceParser;
 import io.github.vecluu.jdoc.source.KnownTypes;
 import java.util.List;
@@ -131,6 +134,49 @@ class TypeDocResolverTest {
         TypeEntry inner = result.get(TypeName.of("p.Foo$Inner"));
         assertThat(inner.type().docSource()).isEqualTo(DocSource.JAVADOC);
         assertThat(inner.type().entryPath()).isEqualTo("p/Foo.Inner.html");
+    }
+
+    @Test
+    void javadocTypesTakeParameterNamesFromExactlyMatchingSignatures() {
+        TypeName foo = TypeName.of("p.Foo");
+        ScannedClass scanned = new ScannedClass(Scanned.type("p.Foo").type(), List.of(
+                executable(foo, "copy", "void copy(String arg0, int arg1)", "String", "int"),
+                executable(foo, "copy", "void copy(String arg0)", "String"),
+                executable(foo, "move", "void move(long arg0)", "long")));
+        String page = """
+                <html><body><section class="class-description"><div class="block">Foo.</div></section>
+                <section class="detail" id="copy(java.lang.String,int)"><h3>copy</h3>
+                <div class="member-signature">void <span class="element-name">copy</span>(String&nbsp;source, int&nbsp;times)</div>
+                <div class="block">Copies.</div></section>
+                <section class="detail" id="copy(java.lang.CharSequence)"><h3>copy</h3>
+                <div class="member-signature">void <span class="element-name">copy</span>(CharSequence&nbsp;text)</div>
+                <div class="block">Copies text.</div></section>
+                <section class="detail" id="move(long)"><h3>move</h3>
+                <div class="member-signature">void <span class="element-name">move</span>(int&nbsp;distance)</div>
+                <div class="block">Moves.</div></section>
+                </body></html>""";
+        MapJavadocArchive javadoc = new MapJavadocArchive().withPage("p/Foo.html", page);
+
+        TypeEntry entry = resolve(resolver(new MapSourceArchive(), javadoc, List.of(scanned)), List.of(scanned))
+                .get(foo);
+
+        // exact match → renamed; copy(String) only loosely matches copy(CharSequence) → keeps arg0 (but gets the
+        // doc); move: the anchor matches but the shown type disagrees → keeps arg0
+        assertThat(signatures(entry)).containsExactly("void copy(String source, int times)", "void copy(String arg0)",
+                "void move(long arg0)");
+        assertThat(entry.memberDescriptors().getFirst().parameters()).extracting(ParameterInfo::name)
+                .containsExactly("source", "times");
+        assertThat(entry.memberDescriptors()).extracting(MemberDescriptor::firstSentence)
+                .containsExactly("Copies.", "Copies text.", "Moves.");
+    }
+
+    private static MemberDescriptor executable(TypeName type, String name, String signature, String... types) {
+        List<ParameterInfo> parameters = new java.util.ArrayList<>();
+        for (int i = 0; i < types.length; i++) {
+            parameters.add(new ParameterInfo("arg" + i, types[i], types[i]));
+        }
+        return MemberDescriptor.builder().declaringType(type).name(name).kind(MemberKind.METHOD)
+                .signature(signature).parameters(parameters).visibility(Visibility.PUBLIC).build();
     }
 
     @Test

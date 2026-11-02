@@ -4,6 +4,7 @@ import io.github.vecluu.jdoc.bytecode.ScannedClass;
 import io.github.vecluu.jdoc.javadoc.JavadocJarReader;
 import io.github.vecluu.jdoc.javadoc.JavadocTypePage;
 import io.github.vecluu.jdoc.model.DocSource;
+import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.RenderedDoc;
 import io.github.vecluu.jdoc.model.TypeDescriptor;
 import io.github.vecluu.jdoc.model.TypeName;
@@ -20,7 +21,8 @@ import java.util.Optional;
  *       {@link DocSource#SOURCES}: descriptors and members from source, but direct supertypes from bytecode (exact,
  *       never guessed);</li>
  *   <li>else the javadoc jar has the type's page → {@link DocSource#JAVADOC}: bytecode signatures plus the docs
- *       rendered from the page;</li>
+ *       rendered from the page; parameter names come from the page's member signature when its section matches
+ *       the member exactly (name and erased parameter types), else the bytecode names stay;</li>
  *   <li>else {@link DocSource#DECOMPILED}: bytecode signatures, no docs.</li>
  * </ol>
  * The source file is looked up once per top-level type, so nested types follow it; a type missing from the parsed
@@ -102,7 +104,10 @@ final class TypeDocResolver {
         List<MemberEntry> members = scanned.members().stream()
                 .map(member -> {
                     RenderedDoc doc = page.memberDoc(member).orElse(RenderedDoc.missing());
-                    return new MemberEntry(member.toBuilder().firstSentence(doc.firstSentence()).build(), doc);
+                    MemberDescriptor named = page.parameterNames(member)
+                            .map(names -> ParameterNames.apply(member, names))
+                            .orElse(member);
+                    return new MemberEntry(named.toBuilder().firstSentence(doc.firstSentence()).build(), doc);
                 })
                 .toList();
         return new TypeEntry(type, page.typeDoc(), members);

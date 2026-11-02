@@ -141,7 +141,9 @@ class ArtifactIndexerIT {
         assertThat(generated.entryPath()).isEqualTo("com/example/sample/gen/GeneratedModel.html");
         assertThat(generated.firstSentence()).isEqualTo("A generated model class.");
         Map<String, MemberDescriptor> members = members(SampleLibrary.GENERATED_MODEL);
-        assertThat(members.get("withId(String)").signature()).isEqualTo("GeneratedModel withId(String arg0)");
+        // real parameter name from the javadoc page's signature (the class file has no MethodParameters)
+        assertThat(members.get("withId(String)").signature()).isEqualTo("GeneratedModel withId(String id)");
+        assertThat(members.get("withId(String)").parameters().getFirst().name()).isEqualTo("id");
         assertThat(members.get("withId(String)").firstSentence()).isEqualTo("Sets the model id.");
         assertThat(members.get("GeneratedModel()").firstSentence()).isEqualTo("Creates a model with the default id.");
     }
