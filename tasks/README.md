@@ -51,7 +51,7 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | T24 | done | `tasks/notes/T24.md` |
 | T25 | done | `tasks/notes/T25.md` |
 | T26 | done | `tasks/notes/T26.md` |
-| T27 | done (tag pending approval) | `tasks/notes/T27.md` |
+| T27 | done (v0.1.0 released 2026-11-02) | `tasks/notes/T27.md` |
 
 ## Backlog (follow-ups found during implementation; not yet scheduled)
 
