@@ -42,6 +42,7 @@ index'
 
 # Library workload, run after the JDK one when the training library could be generated: the first call resolves the
 # second module and indexes its three new jars (sources jar, javadoc jar, binary only), as after adding a dependency.
+# shellcheck disable=SC2016 # Widget$Builder is a nested class name, not an expansion
 library_workload='class jdoc.training.sources.Widget --from ../library
 class jdoc.training.javadoc.Widget --from ../library
 class jdoc.training.binary.Widget --from ../library
