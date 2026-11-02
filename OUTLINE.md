@@ -58,7 +58,7 @@ The JDK is taken from `JAVA_HOME` (Java 25), indexed from its `lib/src.zip`, and
 
 ## Index and cache
 
-The index stores where each type and member lives, its first doc sentence and its full rendered Javadoc. Docs are rendered once at index time, so lookups never start javac or jsoup; this was chosen over a smaller index because JVM startup dominates every call (see `docs/STARTUP-RESEARCH.md`). The index stays faithful to the jar because a changed jar is re-indexed. Only `jdoc source` still reads the jar entry (or decompiles) on demand.
+The index stores where each type and member lives, its first doc sentence and its full rendered Javadoc. Docs are rendered once at index time, so lookups never start javac or jsoup; this was chosen over a smaller index because JVM startup dominates every call (see `docs/decisions/startup.md`). The index stays faithful to the jar because a changed jar is re-indexed. Only `jdoc source` still reads the jar entry (or decompiles) on demand.
 
 ```
 ~/.cache/jdoc/
@@ -167,7 +167,7 @@ inherited from Object: getClass, notify, notifyAll, wait
 
 The skill carries the rules that stop guessing; AGENTS.md only makes sure the agent knows the skill exists. The skill's description is what opencode keeps in context, so it names the trigger plainly.
 
-The build is the primary signature check: compiling is free and catches wrong signatures. jdoc is for APIs the model does not know well (internal, niche or new major versions, unknown class or method names), for the first compile error on a library call (never guess twice), and for behaviour the compiler cannot check (null handling, exceptions, mutability, thread safety, defaults, deprecation). It is not needed for common JDK APIs or for calls the project's own code already makes. The reasoning is in `docs/SKILL-DESIGN.md`.
+The build is the primary signature check: compiling is free and catches wrong signatures. jdoc is for APIs the model does not know well (internal, niche or new major versions, unknown class or method names), for the first compile error on a library call (never guess twice), and for behaviour the compiler cannot check (null handling, exceptions, mutability, thread safety, defaults, deprecation). It is not needed for common JDK APIs or for calls the project's own code already makes. The reasoning is in `docs/decisions/skill-design.md`.
 
 The files themselves are `dist/skill/SKILL.md` (installed into the opencode skills directory) and `dist/AGENTS-snippet.md` (pasted into a repo's `AGENTS.md`); they are the source of truth and are checked against the real `--help`. The embedded drafts that used to be here told the agent to call jdoc before every unverified library method, which over-triggers, and were replaced by T24.
 
@@ -194,7 +194,7 @@ Installing a release:
 4. Paste `AGENTS-snippet.md` into each repo's `AGENTS.md`.
 5. Run `jdoc index` once in a real module and check the missing-sources report.
 
-JVM startup is paid on every call and dominates it (~590 ms warm before tuning). The installer therefore pre-extracts the sqlite native library and trains a JDK 25 AOT cache; the wrapper uses it when its fingerprint still matches the jar and JDK, and otherwise falls back silently to a self-maintaining CDS archive. Measurements and options are in `docs/STARTUP-RESEARCH.md`.
+JVM startup is paid on every call and dominates it (~590 ms warm before tuning). The installer therefore pre-extracts the sqlite native library and trains a JDK 25 AOT cache; the wrapper uses it when its fingerprint still matches the jar and JDK, and otherwise falls back silently to a self-maintaining CDS archive. Measurements and options are in `docs/decisions/startup.md`.
 
 ## CI pipeline (GitHub Actions)
 

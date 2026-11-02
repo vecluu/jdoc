@@ -159,7 +159,7 @@ Tables follow `OUTLINE.md` with these refinements:
 **Docs are stored at index time (T15, reverses the original "first sentence only, parse on demand" decision).**
 Reason: startup cost. Parsing the declaring type's source with javac and rendering javadoc HTML with jsoup on every
 `method`/`class`/`package` call loaded ~1,300 classes and cost ~130 ms (javac init) + ~35 ms (jsoup) per call, more
-than the query itself (`docs/STARTUP-RESEARCH.md`). Cost: the JDK index grows from ~18 MB to ~31 MB (docs deflated:
+than the query itself (`docs/decisions/startup.md`). Cost: the JDK index grows from ~18 MB to ~31 MB (docs deflated:
 ~44 MB without compression) and indexing the JDK takes about the same time (~4 s). `{@inheritDoc}` and undocumented
 overrides are still resolved at lookup time over the stored docs, because supertypes may live in other artifacts.
 

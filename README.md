@@ -130,7 +130,7 @@ After installing:
 The skill ([`dist/skill/SKILL.md`](dist/skill/SKILL.md)) tells the agent when a lookup is worth a call. Use it for
 unfamiliar libraries or versions, for unknown names, after a compile error on a library call, and when behaviour
 matters (null handling, exceptions, thread safety). Common JDK calls don't need one. The reasoning is in
-[`docs/SKILL-DESIGN.md`](docs/SKILL-DESIGN.md).
+[`docs/decisions/skill-design.md`](docs/decisions/skill-design.md).
 
 ## Usage
 
@@ -197,7 +197,7 @@ structure.
 
 A JVM start dominates every call. The installer's AOT cache and launcher flags bring a warm call (index already
 built) under 100 ms. The table shows medians from
-[`docs/STARTUP-RESEARCH.md`](docs/STARTUP-RESEARCH.md), measured with `scripts/bench-startup.sh` on a Ryzen 5 3600
+[`docs/decisions/startup.md`](docs/decisions/startup.md), measured with `scripts/bench-startup.sh` on a Ryzen 5 3600
 with JDK 25. Both columns use the launcher's JVM flags.
 
 | Command | No cache | AOT cache |
