@@ -252,14 +252,8 @@ runs the same build and release job but publishes nothing.
 
 ## Contributing
 
-The project is built from task briefs in [`tasks/`](tasks). Each `Txx-*.md` file is a self-contained brief, and
-[`tasks/AGENT_GUIDE.md`](tasks/AGENT_GUIDE.md) holds the rules that every brief follows: package ownership,
-code and testing standards, and building with your own `-Djdoc.buildDir`. When a task is finished, its notes go in
-`tasks/notes/Txx.md`. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) holds the binding contracts.
-
-Commits follow [Conventional Commits](https://www.conventionalcommits.org) with a [gitmoji](https://gitmoji.dev):
-`<gitmoji> <type>(<scope>): <subject>`, for example `✨ feat(lookup): rank the module's libraries above the JDK`.
-Keep each commit to one scope, and make sure it compiles.
+Rules for contributors and coding agents (build, tests, commit format, how work is organised) are in
+[`CLAUDE.md`](CLAUDE.md); the code structure is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## License
 
