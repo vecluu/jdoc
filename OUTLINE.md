@@ -118,7 +118,7 @@ Eight commands, all plain text, all answering from the current module's classpat
 
 | Command | Returns |
 | --- | --- |
-| `jdoc find <pattern>` | Matching types and members as FQCNs, one line each; case-insensitive substring or camel humps (`HSR` matches `HttpServletRequest`) |
+| `jdoc find <pattern>` | Matching types and members as FQCNs, one line each; case-insensitive substring or camel humps (`HSR` matches `HttpServletRequest`); at equal match score the module's libraries rank before the JDK |
 | `jdoc class <type>` | Kind, generics, supertypes, first doc paragraph; each public and protected member as signature plus first sentence; inherited member names by declaring type |
 | `jdoc method <type>#<name>[(<params>)]` | Full rendered Javadoc for the method, or for every overload when no params are given |
 | `jdoc source <type>#<name>[(<params>)]` | The method body with its Javadoc; the only command that shows implementation |
