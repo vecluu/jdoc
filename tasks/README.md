@@ -14,7 +14,7 @@ are in `tasks/AGENT_GUIDE.md`; the brief shape is `tasks/TEMPLATE.md`.
    `docs/ARCHITECTURE.md` and the area maps reflect the change.
 5. **Finished briefs and notes are deleted** in the task's last commit, after anything durable has moved into the
    docs or the backlog. Git keeps them: `git log --all --full-history -- tasks/notes/Txx.md`. Task numbers keep
-   counting up (T01–T31 are done; the v0.1.0 tag holds their briefs and notes).
+   counting up (T01–T31 are done; the v0.1.0 tag holds the briefs and notes of T01–T27).
 6. Long research or implementation goes to agents, so the orchestrator's context stays small.
 
 ## In flight
