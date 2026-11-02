@@ -17,7 +17,6 @@ class TypeReferenceParserTest {
     void simpleNameIsARelativeLookup() {
         TypeReference reference = parse("Optional");
 
-        assertThat(reference.isSimpleName()).isTrue();
         assertThat(reference.simpleName()).isEqualTo("Optional");
         assertThat(reference.candidates()).containsExactly(relative("Optional"));
     }
@@ -26,7 +25,6 @@ class TypeReferenceParserTest {
     void fqcnTriesTheConventionalSplitFirst() {
         TypeReference reference = parse("java.util.Optional");
 
-        assertThat(reference.isSimpleName()).isFalse();
         assertThat(reference.names()).containsExactly("java", "util", "Optional");
         assertThat(reference.candidates()).containsExactly(
                 exact("java.util.Optional"), exact("java.util$Optional"), exact("java$util$Optional"));

@@ -121,16 +121,6 @@ public record Gav(String groupId, String artifactId, String version, Optional<St
         return repositoryDirectory().resolve(fileName());
     }
 
-    /** Repository-relative path of the {@code -sources.jar} sibling. */
-    public Path sourcesJarPath() {
-        return repositoryDirectory().resolve(artifactId + "-" + version + "-sources.jar");
-    }
-
-    /** Repository-relative path of the {@code -javadoc.jar} sibling. */
-    public Path javadocJarPath() {
-        return repositoryDirectory().resolve(artifactId + "-" + version + "-javadoc.jar");
-    }
-
     /** Repository-relative path of the artifact's POM. */
     public Path pomPath() {
         return repositoryDirectory().resolve(artifactId + "-" + version + ".pom");

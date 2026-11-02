@@ -60,10 +60,5 @@ public sealed interface TypeCandidate permits TypeCandidate.Exact, TypeCandidate
             int offset = names.size() - simpleNames.size();
             return offset >= 0 && names.subList(offset, names.size()).equals(simpleNames);
         }
-
-        /** True if only a simple name was given. */
-        public boolean isSimpleName() {
-            return simpleNames.size() == 1;
-        }
     }
 }

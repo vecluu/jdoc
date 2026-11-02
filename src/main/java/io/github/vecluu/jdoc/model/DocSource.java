@@ -29,9 +29,4 @@ public enum DocSource {
     public Optional<String> headerTag() {
         return Optional.ofNullable(headerTag);
     }
-
-    /** True for sources parsed from {@code .java} text (sources jar or JDK {@code src.zip}). */
-    public boolean isSourceText() {
-        return this == SOURCES || this == JDK;
-    }
 }

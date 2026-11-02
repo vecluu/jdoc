@@ -23,7 +23,7 @@ public final class PageFooter {
     }
 
     /** Removes {@code --page N}, {@code --page=N} and a dangling {@code --page} from a command line. */
-    public static String withoutPageOption(String commandLine) {
+    private static String withoutPageOption(String commandLine) {
         if (commandLine == null) {
             return "";
         }
@@ -44,7 +44,7 @@ public final class PageFooter {
     }
 
     /** The command that shows the given page. */
-    public String nextCommand(int page) {
+    private String nextCommand(int page) {
         String option = "--page " + page;
         return commandLine.isEmpty() ? option : commandLine + " " + option;
     }

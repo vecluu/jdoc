@@ -24,18 +24,8 @@ public record TokenBudget(int maxTokens) {
         return new TokenBudget(DEFAULT_MAX_TOKENS);
     }
 
-    /** Estimated tokens of a text: characters / 4, rounded up. */
-    public static int estimateTokens(CharSequence text) {
-        return (text.length() + CHARACTERS_PER_TOKEN - 1) / CHARACTERS_PER_TOKEN;
-    }
-
     /** Characters allowed per page (line breaks count as characters). */
     public int maxCharacters() {
         return maxTokens * CHARACTERS_PER_TOKEN;
-    }
-
-    /** True if the text fits into the budget. */
-    public boolean fits(CharSequence text) {
-        return text.length() <= maxCharacters();
     }
 }

@@ -78,8 +78,6 @@ class GavTest {
         assertThat(lang3.groupPath()).isEqualTo("org/apache/commons");
         assertThat(lang3.repositoryDirectory()).isEqualTo(dir);
         assertThat(lang3.repositoryPath()).isEqualTo(dir.resolve("commons-lang3-3.17.0.jar"));
-        assertThat(lang3.sourcesJarPath()).isEqualTo(dir.resolve("commons-lang3-3.17.0-sources.jar"));
-        assertThat(lang3.javadocJarPath()).isEqualTo(dir.resolve("commons-lang3-3.17.0-javadoc.jar"));
         assertThat(lang3.pomPath()).isEqualTo(dir.resolve("commons-lang3-3.17.0.pom"));
     }
 

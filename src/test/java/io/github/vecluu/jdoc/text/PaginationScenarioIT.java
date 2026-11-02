@@ -25,7 +25,6 @@ class PaginationScenarioIT {
         List<String> body = new ArrayList<>();
         for (Page page : pages) {
             assertThat(page.printedCharacters()).isLessThanOrEqualTo(TokenBudget.defaultBudget().maxCharacters());
-            assertThat(TokenBudget.estimateTokens(page.text())).isLessThanOrEqualTo(2_000);
             assertThat(page.lines().getFirst()).isEqualTo(HEADER);
             String footer = page.lines().getLast();
             if (page.hasNext()) {

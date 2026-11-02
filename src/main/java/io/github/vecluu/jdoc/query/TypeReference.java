@@ -27,11 +27,6 @@ public record TypeReference(String input, List<String> names, List<TypeCandidate
         return names.getLast();
     }
 
-    /** True if the input was a bare simple name ({@code Optional}). */
-    public boolean isSimpleName() {
-        return names.size() == 1;
-    }
-
     /** True if any candidate accepts the given type. */
     public boolean matches(TypeName type) {
         return candidates.stream().anyMatch(candidate -> candidate.matches(type));

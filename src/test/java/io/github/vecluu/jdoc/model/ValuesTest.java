@@ -48,8 +48,6 @@ class ValuesTest {
         assertThat(DocSource.JDK.headerTag()).isEmpty();
         assertThat(DocSource.JAVADOC.headerTag()).contains("[from javadoc jar]");
         assertThat(DocSource.DECOMPILED.headerTag()).contains("[decompiled, no docs]");
-        assertThat(DocSource.JDK.isSourceText()).isTrue();
-        assertThat(DocSource.JAVADOC.isSourceText()).isFalse();
     }
 
     @Test

@@ -33,14 +33,13 @@ class PageFooterTest {
         "  jdoc class X  |jdoc class X",
     })
     void removesThePageOption(String input, String expected) {
-        assertThat(PageFooter.withoutPageOption(input)).isEqualTo(expected);
         assertThat(new PageFooter(input).commandLine()).isEqualTo(expected);
     }
 
     @Test
     void handlesMissingCommandLine() {
-        assertThat(PageFooter.withoutPageOption(null)).isEmpty();
-        assertThat(new PageFooter("").nextCommand(2)).isEqualTo("--page 2");
+        assertThat(new PageFooter(null).commandLine()).isEmpty();
+        assertThat(new PageFooter("").footer(1, 2)).isEqualTo("page 1/2 · next: --page 2");
     }
 
     @Test
