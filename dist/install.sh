@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# Installs jdoc from the extracted release bundle (VERSION, install.sh, bin/jdoc, lib/jdoc.jar, skill/SKILL.md).
+#
+# Usage: install.sh [--prefix DIR] [--bindir DIR] [--skills-dir DIR] [--no-aot]
+#
+#   --prefix DIR      install root (default /opt/jdoc): DIR/lib/jdoc.jar, DIR/lib/native/, DIR/lib/jdoc.aot
+#   --bindir DIR      where the `jdoc` launcher goes (default /usr/local/bin)
+#   --skills-dir DIR  also install the opencode skill as DIR/jdoc/SKILL.md
+#   --no-aot          skip training the AOT cache (the launcher then uses its per-user fallback archive)
+#
+# Needs Java 25 on PATH (the same `java` the launcher will use). Runs offline. Besides copying the jar it
+#   1. extracts the sqlite native library for this machine once, so no call extracts it to /tmp;
+#   2. trains a JDK AOT cache with the two-step record/create workflow on a throwaway module with a fake `mvn` and a
+#      temporary JDOC_CACHE (no network, no real Maven, the user's cache untouched);
+#   3. writes the cache's fingerprint (JVM flags, `stat` of the jar, java binary and JDK image) next to it.
+# Everything produced lives under the prefix. Re-running the installer rebuilds all of it.
+set -euo pipefail
+
+# JVM flags of every call; the AOT cache is trained with exactly these.
+jvm_flags='-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData'
+
+# Training workload: representative commands, run in one JVM against the JDK (the first one indexes it).
+workload='index
+--version
+--help
+method java.util.Optional#orElseThrow
+method java.util.List#of
+class java.util.Optional
+class java.util.HashMap
+class Duration
+class does.not.Exist
+find HashMap
+find HSM
+member orElseThrow
+package java.util
+impls java.util.List
+source java.util.Optional#orElseThrow
+source java.util.ArrayList#add
+index'
+
+die() {
+  echo "install.sh: $*" >&2
+  exit 1
+}
+warn() { echo "install.sh: warning: $*" >&2; }
+
+usage() { sed -n '4,9s/^# \{0,1\}//p' "$0"; }
+
+prefix=/opt/jdoc
+bindir=/usr/local/bin
+skills=
+train=1
+while [ $# -gt 0 ]; do
+  case $1 in
+    --prefix) [ $# -ge 2 ] || die "--prefix needs a value"; prefix=$2; shift 2 ;;
+    --prefix=*) prefix=${1#*=}; shift ;;
+    --bindir) [ $# -ge 2 ] || die "--bindir needs a value"; bindir=$2; shift 2 ;;
+    --bindir=*) bindir=${1#*=}; shift ;;
+    --skills-dir) [ $# -ge 2 ] || die "--skills-dir needs a value"; skills=$2; shift 2 ;;
+    --skills-dir=*) skills=${1#*=}; shift ;;
+    --no-aot) train=0; shift ;;
+    -h | --help) usage; exit 0 ;;
+    *) usage >&2; die "unknown option: $1" ;;
+  esac
+done
+
+here=$(cd "$(dirname "$0")" && pwd)
+[ -f "$here/lib/jdoc.jar" ] && [ -f "$here/bin/jdoc" ] \
+  || die "lib/jdoc.jar or bin/jdoc missing next to install.sh; run it from the extracted release bundle"
+
+java=$(command -v java) || die "jdoc needs Java 25 on PATH"
+java_version=$("$java" -version 2>&1) || true
+case $java_version in
+  *'version "25'*) ;;
+  *) die "jdoc needs Java 25 on PATH, found: ${java_version%%$'\n'*}" ;;
+esac
+java_real=$(readlink -f "$java")
+java_home=$(cd "$(dirname "$java_real")/.." && pwd)
+
+mkdir -p "$prefix" "$bindir"
+prefix=$(cd "$prefix" && pwd)
+bindir=$(cd "$bindir" && pwd)
+lib=$prefix/lib
+mkdir -p "$lib"
+
+work=$(mktemp -d "${TMPDIR:-/tmp}/jdoc-install.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+
+# Single-quote a string for sh.
+quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+# Escape a string for the replacement part of a sed s|...|...| command.
+sed_escape() { printf '%s' "$1" | sed 's/[\\&|]/\\&/g'; }
+stat_key() { stat -L -c '%s %Y %i' "$lib/jdoc.jar" "$java" "$java_home/release" "$java_home/lib/modules" 2>/dev/null || true; }
+
+# 1. The jar. Drop the old cache first so no call pairs it with the new jar.
+rm -f "$lib/jdoc.aot" "$lib/jdoc.aot.key" "$lib/jdoc.aot.tmp"
+cp "$here/lib/jdoc.jar" "$lib/jdoc.jar.new"
+chmod 644 "$lib/jdoc.jar.new"
+mv -f "$lib/jdoc.jar.new" "$lib/jdoc.jar"
+if [ -f "$here/VERSION" ]; then
+  cp "$here/VERSION" "$prefix/VERSION"
+  chmod 644 "$prefix/VERSION"
+fi
+
+# 2. The sqlite native library for this OS and architecture, as sqlite-jdbc itself names the folder.
+rm -rf "$lib/native"
+native_ok=0
+if folder=$("$java" -cp "$lib/jdoc.jar" org.sqlite.util.OSInfo 2> /dev/null) && [ -n "$folder" ]; then
+  for name in libsqlitejdbc.so libsqlitejdbc.dylib; do
+    entry=org/sqlite/native/$folder/$name
+    mkdir -p "$work/native"
+    if command -v unzip > /dev/null 2>&1; then
+      unzip -p "$lib/jdoc.jar" "$entry" > "$work/native/lib" 2> /dev/null || true
+    elif [ -x "$java_home/bin/jar" ]; then
+      (cd "$work/native" && "$java_home/bin/jar" xf "$lib/jdoc.jar" "$entry" && mv -f "$entry" lib) 2> /dev/null || true
+    fi
+    if [ -s "$work/native/lib" ]; then
+      mkdir -p "$lib/native"
+      cp "$work/native/lib" "$lib/native/libsqlitejdbc.so"
+      chmod 644 "$lib/native/libsqlitejdbc.so"
+      native_ok=1
+      break
+    fi
+  done
+fi
+[ "$native_ok" = 1 ] || warn "could not extract the sqlite native library; each call will extract it to the temp dir"
+sqlite_props=()
+if [ "$native_ok" = 1 ]; then
+  sqlite_props=("-Dorg.sqlite.lib.path=$lib/native" -Dorg.sqlite.lib.name=libsqlitejdbc.so)
+fi
+
+# 3. The launcher.
+sed -e "s|@LIB@|$(sed_escape "$(quote "$lib")")|" -e "s|@JVM_FLAGS@|$(sed_escape "$jvm_flags")|" \
+  "$here/bin/jdoc" > "$bindir/jdoc.new"
+chmod 755 "$bindir/jdoc.new"
+mv -f "$bindir/jdoc.new" "$bindir/jdoc"
+
+# 4. AOT cache: record a training run, create the cache, then store its fingerprint.
+if [ "$train" = 1 ]; then
+  mkdir -p "$work/module" "$work/cache" "$work/m2" "$work/bin"
+  cat > "$work/module/pom.xml" << 'EOF'
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>jdoc.training</groupId>
+  <artifactId>training</artifactId>
+  <version>1</version>
+</project>
+EOF
+  cat > "$work/bin/mvn" << 'EOF'
+#!/bin/sh
+# Fake mvn for the training run: an empty dependency list.
+out=
+for a in "$@"; do case "$a" in -DoutputFile=*) out="${a#-DoutputFile=}" ;; esac; done
+if [ -n "$out" ]; then : > "$out"; fi
+exit 0
+EOF
+  chmod 755 "$work/bin/mvn"
+  printf '%s\n' "$workload" > "$work/workload.txt"
+
+  echo "training the AOT cache (indexes the JDK once, takes a few seconds)..."
+  # shellcheck disable=SC2086 # jvm_flags is a list of words on purpose
+  if (cd "$work/module" \
+    && env JDOC_CACHE="$work/cache" JDOC_M2_REPO="$work/m2" JDOC_MVN="$work/bin/mvn" JAVA_HOME="$java_home" \
+      "$java" $jvm_flags "${sqlite_props[@]}" -XX:AOTMode=record -XX:AOTConfiguration="$work/jdoc.aotconf" \
+      -Djdoc.aotTraining="$work/workload.txt" -jar "$lib/jdoc.jar" > "$work/train.log" 2>&1 \
+    && "$java" $jvm_flags "${sqlite_props[@]}" -XX:AOTMode=create -XX:AOTConfiguration="$work/jdoc.aotconf" \
+      -XX:AOTCache="$lib/jdoc.aot.tmp" -jar "$lib/jdoc.jar" >> "$work/train.log" 2>&1) \
+    && [ -s "$lib/jdoc.aot.tmp" ]; then
+    chmod 644 "$lib/jdoc.aot.tmp"
+    {
+      echo "# Fingerprint of jdoc.aot, written by install.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ); sourced by bin/jdoc."
+      echo "# The cache is used only while all values below still match. Trained with:"
+      echo "#   java: $java -> $java_real"
+      printf '%s\n' "$java_version" | sed 's/^/#   /'
+      echo "#   jar: $lib/jdoc.jar"
+      echo "aot_flags=$(quote "$jvm_flags")"
+      echo "aot_home=$(quote "$java_home")"
+      echo "aot_stat=$(quote "$(stat_key)")"
+    } > "$lib/jdoc.aot.key.tmp"
+    chmod 644 "$lib/jdoc.aot.key.tmp"
+    mv -f "$lib/jdoc.aot.tmp" "$lib/jdoc.aot"
+    mv -f "$lib/jdoc.aot.key.tmp" "$lib/jdoc.aot.key"
+    echo "AOT cache: $lib/jdoc.aot ($(($(stat -c %s "$lib/jdoc.aot") / 1048576)) MB)"
+  else
+    rm -f "$lib/jdoc.aot.tmp"
+    warn "AOT training failed; jdoc works, but starts slower. Last lines of the training log:"
+    tail -n 20 "$work/train.log" >&2 || true
+  fi
+fi
+
+# 5. The opencode skill.
+if [ -n "$skills" ]; then
+  if [ -f "$here/skill/SKILL.md" ]; then
+    mkdir -p "$skills/jdoc"
+    cp "$here/skill/SKILL.md" "$skills/jdoc/SKILL.md"
+    chmod 644 "$skills/jdoc/SKILL.md"
+  else
+    warn "skill/SKILL.md not in the bundle; skill not installed"
+  fi
+fi
+
+version=unknown
+[ -f "$here/VERSION" ] && version=$(cat "$here/VERSION")
+echo "installed jdoc $version: $bindir/jdoc -> $lib/jdoc.jar"

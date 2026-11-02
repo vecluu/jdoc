@@ -1,0 +1,75 @@
+#!/bin/sh
+# jdoc launcher. install.sh fills in the @...@ placeholders; re-run install.sh instead of editing the result.
+#
+# Runs jdoc with startup-tuned JVM flags and the sqlite native library extracted at install time (nothing is written
+# to /tmp per call). The AOT cache trained at install time is used only while its fingerprint still matches: the
+# JVM flags, and `stat` of the jar, of the `java` found on PATH and of that JDK's `release` and `lib/modules`. A
+# rejected AOT cache would make the JVM run without any CDS at all, so on a mismatch the wrapper uses a
+# self-maintaining per-user CDS archive in the jdoc cache directory instead. JVM cache messages are never printed.
+#
+# Environment:
+#   JDOC_JAVA_OPTS       extra JVM options, added after the wrapper's own (split on whitespace)
+#   JDOC_WRAPPER_DEBUG   if 1, print the chosen cache mode on stderr
+#   JDOC_CACHE           jdoc cache directory (default ~/.cache/jdoc); the fallback archive lives in its cds/
+
+lib=@LIB@
+jvm_flags='@JVM_FLAGS@'
+# Unified-logging warnings go to stderr instead of stdout, cache (aot/cds) messages nowhere.
+log_flags='-Xlog:disable -Xlog:all=warning:stderr -Xlog:aot*=off,cds*=off:stderr'
+
+java=$(command -v java) || {
+  echo "jdoc: no java on PATH (jdoc needs Java 25)" >&2
+  exit 127
+}
+
+debug() {
+  if [ "${JDOC_WRAPPER_DEBUG:-}" = 1 ]; then echo "jdoc wrapper: $*" >&2; fi
+}
+
+# Build the JVM arguments in front of the user's arguments, so "$@" passes through untouched.
+set -- -jar "$lib/jdoc.jar" "$@"
+if [ -f "$lib/native/libsqlitejdbc.so" ]; then
+  set -- "-Dorg.sqlite.lib.path=$lib/native" -Dorg.sqlite.lib.name=libsqlitejdbc.so "$@"
+fi
+
+aot=
+if [ -f "$lib/jdoc.aot" ] && [ -r "$lib/jdoc.aot.key" ]; then
+  aot_flags= aot_home= aot_stat=
+  # shellcheck source=/dev/null
+  . "$lib/jdoc.aot.key"
+  if [ "$aot_flags" = "$jvm_flags" ] && [ -n "$aot_stat" ] &&
+    [ "$(stat -L -c '%s %Y %i' "$lib/jdoc.jar" "$java" "$aot_home/release" "$aot_home/lib/modules" 2>/dev/null)" \
+      = "$aot_stat" ]; then
+    aot=$lib/jdoc.aot
+  fi
+fi
+
+if [ -n "$aot" ]; then
+  debug "aot cache $aot"
+  set -- "-XX:AOTCache=$aot" "$@"
+else
+  cds=${JDOC_CACHE:-}
+  case $cds in
+    '') cds=${HOME:+$HOME/.cache/jdoc} ;;
+    '~') cds=${HOME:-} ;;
+    '~/'*) cds=${HOME:+$HOME/${cds#'~/'}} ;;
+  esac
+  if [ -n "$cds" ] && { [ -d "$cds/cds" ] || mkdir -p "$cds/cds" 2>/dev/null; } && [ -w "$cds/cds" ]; then
+    jsa=$cds/cds/jdoc.jsa
+    # The JVM writes the archive header last: a file without the dynamic-archive magic (an interrupted or
+    # concurrent write) would disable CDS on every later call instead of being rebuilt, so drop it.
+    if [ -f "$jsa" ]; then
+      case $(od -An -tx1 -N4 "$jsa" 2>/dev/null) in
+        *a8*ab*0b*f0*) ;;
+        *) rm -f "$jsa" ;;
+      esac
+    fi
+    debug "fallback archive $jsa"
+    set -- -XX:+AutoCreateSharedArchive "-XX:SharedArchiveFile=$jsa" -XX:-PrintWarnings "$@"
+  else
+    debug "no cache"
+  fi
+fi
+
+# shellcheck disable=SC2086 # the flag lists are words on purpose
+exec "$java" $jvm_flags $log_flags ${JDOC_JAVA_OPTS:-} "$@"
