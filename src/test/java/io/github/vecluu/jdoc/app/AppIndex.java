@@ -46,9 +46,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Test helper: a real SQLite index in a temp directory filled (through T08's store, docs included) with types parsed
- * (T04) from hand-written sources, and a {@link ModuleContext} fake that hands out sessions on it, so app services are
- * tested without Maven or indexing.
+ * Test helper: a real SQLite index in a temp directory filled (through the indexer's {@link SqliteIndexStore}, docs
+ * included) with types parsed by {@link JavaSourceParser} from hand-written sources, and a {@link ModuleContext} fake
+ * that hands out sessions on it, so app services are tested without Maven or indexing.
  */
 final class AppIndex implements AutoCloseable {
 

@@ -21,7 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * End-to-end lookups over the real sample library ({@link SampleLibrary#mixed()}: sources, javadoc-only and
- * decompiled types) indexed by T08's real jar indexer (docs stored in the index) plus a mini JDK {@code src.zip}, with
+ * decompiled types) indexed by the real jar indexer (docs stored in the index) plus a mini JDK {@code src.zip}, with
  * real Vineflower for {@code jdoc source}.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

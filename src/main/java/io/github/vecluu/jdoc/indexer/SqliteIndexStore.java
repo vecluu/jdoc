@@ -19,8 +19,8 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 
 /**
- * {@link IndexStore} on T03's repositories; types, members and their rendered docs are written together. Like the {@link IndexDatabase} it wraps, an instance must be confined to
- * one thread at a time.
+ * {@link IndexStore} on the index repositories; types, members and their rendered docs are written together. Like
+ * the {@link IndexDatabase} it wraps, an instance must be confined to one thread at a time.
  */
 @RequiredArgsConstructor
 public final class SqliteIndexStore implements IndexStore {

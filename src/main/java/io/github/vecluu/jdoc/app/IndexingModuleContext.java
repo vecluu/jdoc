@@ -12,8 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The real {@link ModuleContext}: T02's resolver (Maven only on a POM change), T08's indexer (only new or changed
- * jars), then the lookup scope with the JDK first. Confined to one thread, like the indexer.
+ * The real {@link ModuleContext}: the classpath resolver (Maven only on a POM change), the classpath indexer (only
+ * new or changed jars), then the lookup scope with the JDK first. Confined to one thread, like the indexer.
  */
 @Slf4j
 @RequiredArgsConstructor

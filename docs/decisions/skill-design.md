@@ -1,6 +1,6 @@
 # Skill design: when is a jdoc call worth it?
 
-Decision record for `dist/skill/SKILL.md` and `dist/AGENTS-snippet.md` (T24). The first skill (T18) said "call jdoc
+Decision record for `dist/skill/SKILL.md` and `dist/AGENTS-snippet.md`. The first version of the skill said "call jdoc
 before any library method you have not verified in this session". Read literally, that means a lookup before almost
 every line that touches the JDK or a library. Most of those lookups would confirm what the model already knows
 (`List.of`, `String.isBlank`, `Optional.orElseThrow`). This document sets the trigger deliberately.
@@ -9,7 +9,7 @@ every line that touches the JDK or a library. Most of those lookups would confir
 
 | Cost | Size | Source |
 | --- | --- | --- |
-| Wall time, warm | ~0.2-0.6 s | `docs/decisions/startup.md` "Measured"; 0.22 s with the T24 build |
+| Wall time, warm | ~0.2-0.6 s | `docs/decisions/startup.md` "Measured"; 0.22 s with the build that rewrote the skill trigger |
 | Wall time, first call in a module | ~6 s | the index is built once per module, then refreshed only on POM change |
 | Tokens of the answer | ~50-200 (`find`, `member`, one overload), ~250-500 (`method` with one overload, `source`), ~800-2,000 (`class`, every overload of a heavily overloaded method) | measured on the sample project; the hard cap is ~2,000 tokens a page |
 | Agent turns | one tool call, so one more model turn (re-reading the whole context) | |

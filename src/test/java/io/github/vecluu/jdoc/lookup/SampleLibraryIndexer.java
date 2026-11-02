@@ -13,7 +13,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 
 /**
- * IT helper: indexes a built library with T08's real {@link JarArtifactIndexer} (per-type fallback sources jar, then
+ * IT helper: indexes a built library with the real {@link JarArtifactIndexer} (per-type fallback sources jar, then
  * javadoc page, then decompiled; rendered docs stored) into a {@link LookupIndex} and adds it to the scope.
  */
 final class SampleLibraryIndexer {

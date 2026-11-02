@@ -327,16 +327,16 @@ Savings are for the warm `method` call against today's 591 ms wrapper.
 3. **Only if still too slow:** the daemon (option 5) with a Java client from an AOT cache (~44 ms) and an idle
    timeout, falling back to in-process execution on any connection problem.
 
-## Measured (T16, after picocli removal and docs in the index)
+## Measured (after picocli removal and docs in the index)
 
 Harness: `scripts/bench-startup.sh <jar>` (temp module with a fake `mvn`, temp `JDOC_CACHE`/`JDOC_M2_REPO`, one
 `jdoc index` to warm, then per command 2 unmeasured and 11 measured runs, median). `BENCH_JVM_FLAGS` replaces the JVM
-flags (T17: add `-XX:AOTCache=...`), `BENCH_RUNS`, `BENCH_WARMUP`, `BENCH_COMMANDS`, `BENCH_JAVA`, `BENCH_KEEP`.
-Same machine and JDK as above; no AOT cache. "T17 flags" = `-XX:TieredStopAtLevel=1 -XX:+UseSerialGC
--XX:-UsePerfData` + pre-extracted sqlite library (`-Dorg.sqlite.lib.path/.name`), i.e. the planned wrapper without
-the cache.
+flags (for the AOT cache: add `-XX:AOTCache=...`), `BENCH_RUNS`, `BENCH_WARMUP`, `BENCH_COMMANDS`, `BENCH_JAVA`,
+`BENCH_KEEP`. Same machine and JDK as above; no AOT cache. "Wrapper flags" = `-XX:TieredStopAtLevel=1
+-XX:+UseSerialGC -XX:-UsePerfData` + pre-extracted sqlite library (`-Dorg.sqlite.lib.path/.name`), i.e. the planned
+wrapper without the cache.
 
-| Command | before T16, C1 only | after T16, C1 only | before, T17 flags | after, T17 flags |
+| Command | before, C1 only | after, C1 only | before, wrapper flags | after, wrapper flags |
 | --- | --- | --- | --- | --- |
 | `--version` | 40 ms | 40 ms | 35 ms | 37 ms |
 | `class java.util.Optional` | 310 | 233 | 248 | 167 |
@@ -345,11 +345,11 @@ the cache.
 | `member orElseThrow` | 280 | 212 | 219 | 148 |
 | `source java.util.Optional#orElseThrow` | 515 | 221 | 447 | 159 |
 
-`member orElseThrow` from a module of a 30-module reactor, T17 flags: 255 → 150 ms (every call parsed all 31 POMs
-before). Classes loaded by `method`: 2,362 → 2,162 (not from CDS: 1,029 → 829; JAXP 140 → 1); by `source`:
+`member orElseThrow` from a module of a 30-module reactor, wrapper flags: 255 → 150 ms (every call parsed all 31
+POMs before). Classes loaded by `method`: 2,362 → 2,162 (not from CDS: 1,029 → 829; JAXP 140 → 1); by `source`:
 3,924 → 2,166 (javac 1,079 → 0).
 
-What changed, each measured on its own (median `method`, T17 flags unless noted):
+What changed, each measured on its own (median `method`, wrapper flags unless noted):
 
 | Change | Effect |
 | --- | --- |
@@ -363,7 +363,7 @@ What changed, each measured on its own (median `method`, T17 flags unless noted)
 Tried and dropped: initialising slf4j on its own thread as soon as a command is known (−5 ms, within noise of the
 AOT case); `-Dslf4j.provider=...` (−3 ms, prints an info line).
 
-Where a warm `method` call still spends its time (T17 flags, ~150 ms; `-Xlog:class+load` timestamps + JFR):
+Where a warm `method` call still spends its time (wrapper flags, ~150 ms; `-Xlog:class+load` timestamps + JFR):
 
 - JVM boot to `Main` ~23 ms; CLI parsing and wiring ~50 ms of mostly cold class loading, including slf4j-simple
   initialisation (~12 ms, triggered by the first `@Slf4j` class) and the first record `ObjectMethods` /
@@ -374,9 +374,9 @@ Where a warm `method` call still spends its time (T17 flags, ~150 ms; `-Xlog:cla
 - Resolution with a snapshot hit ~8 ms; indexer freshness check ~10 ms (first SQL statements, JDBC classes).
 - Lookup and rendering ~40 ms, almost all first-use class loading; SQL itself is a few ms.
 
-Most of the remainder is cold code, which is what the AOT cache (T17) removes.
+Most of the remainder is cold code, which is what the AOT cache (next section) removes.
 
-## Measured (T17, installed AOT cache, wrapper and installer)
+## Measured (installed AOT cache, wrapper and installer)
 
 `scripts/bench-startup.sh` on the jar installed by `dist/install.sh` (median of 11 after 2 warm-ups, machine shared
 with other builds, so ±10 ms). All columns use `-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData` and the
@@ -418,10 +418,10 @@ Verified while building the wrapper (JDK 25.0.5):
   moves it in place. `-Djdoc.aotTraining=...` at training time does not stop the cache matching runtime calls.
 - Java's temp dir ignores `TMPDIR`; with the wrapper nothing appears in `java.io.tmpdir` per call.
 
-## Measured (T23, training covers library indexing)
+## Measured (AOT training covers library indexing)
 
-Before T23 the training workload only looked up JDK types, so the code that indexes a newly added library jar
-(ASM scan, sources-jar parse, javadoc HTML via jsoup) and Vineflower ran cold on the first call after a dependency
+Before this change the training workload only looked up JDK types, so the code that indexes a newly added library
+jar (ASM scan, sources-jar parse, javadoc HTML via jsoup) and Vineflower ran cold on the first call after a dependency
 was added or bumped. `dist/install.sh` now first runs `io.github.vecluu.jdoc.cli.TrainingLibrary` in its own,
 non-recording JVM (javac + javadoc in-process, ~1 s): it writes a tiny library in three flavours (sources jar,
 javadoc jar only, binary only; packages `jdoc.training.{sources,javadoc,binary}`) into the training repository plus
@@ -435,9 +435,10 @@ a different small library (`bench.fresh`, compiled once by the script with the J
 the training library) gets a new version before every run, declared in a second module's POM and listed by the fake
 `mvn`. Each measured call therefore re-resolves the module and indexes a jar it has never seen.
 
-Same jar for both columns (working tree with T22's in-progress changes, built 2026-11-02), installed once with the
-pre-T23 installer and once with the T23 installer; 3 interleaved rounds of `bench-startup.sh` (11 runs after 2
-warm-ups each), median of the round medians, wrapper flags + `-XX:AOTMode=on`, load ~3 (other agents building).
+Same jar for both columns (working tree with the in-progress signature and `find` ranking changes, built
+2026-11-02), installed once with the installer from before this change and once with the new one; 3 interleaved
+rounds of `bench-startup.sh` (11 runs after 2 warm-ups each), median of the round medians, wrapper flags +
+`-XX:AOTMode=on`, load ~3 (other agents building).
 
 | Command | no cache | AOT, JDK training (before) | AOT, JDK + library training (after) |
 | --- | --- | --- | --- |

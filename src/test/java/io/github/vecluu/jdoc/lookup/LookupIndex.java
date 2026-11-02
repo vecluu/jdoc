@@ -46,9 +46,10 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Test helper: a real SQLite index in a temp directory, populated through T08's {@link SqliteIndexStore} (so docs are
- * stored exactly as the indexer stores them) with hand-built descriptors or with types and docs parsed by T04 from
- * hand-written sources (also written to a real sources jar or {@code src.zip} for {@code jdoc source}).
+ * Test helper: a real SQLite index in a temp directory, populated through the indexer's {@link SqliteIndexStore} (so
+ * docs are stored exactly as the indexer stores them) with hand-built descriptors or with types and docs parsed by
+ * {@link JavaSourceParser} from hand-written sources (also written to a real sources jar or {@code src.zip} for
+ * {@code jdoc source}).
  */
 final class LookupIndex implements AutoCloseable {
 
@@ -99,7 +100,7 @@ final class LookupIndex implements AutoCloseable {
         });
     }
 
-    /** The store, for indexing with T08's real indexers; call {@link #register} with the result. */
+    /** The store, for indexing with the real indexers; call {@link #register} with the result. */
     SqliteIndexStore store() {
         return store;
     }
@@ -141,8 +142,8 @@ final class LookupIndex implements AutoCloseable {
     }
 
     /**
-     * Writes the sources into a jar ({@code <name>.jar}), parses them with T04 and indexes every type with its API
-     * members. For the JDK, entries get the module prefix (e.g. {@code java.base/}).
+     * Writes the sources into a jar ({@code <name>.jar}), parses them with {@link JavaSourceParser} and indexes every
+     * type with its API members. For the JDK, entries get the module prefix (e.g. {@code java.base/}).
      *
      * @param key        artifact key
      * @param docSource  {@link DocSource#SOURCES} (sources jar) or {@link DocSource#JDK} (src.zip as the jar path)

@@ -77,13 +77,13 @@ class RealMavenResolutionIT {
                 .build();
         sampleLib = TestEnvironments.repository(env).install(SampleLibrary.complete(), Scope.COMPILE);
         project = tmp.toRealPath().resolve("project");
-        pom(project, gav("demo.t19", "parent", "1.0-SNAPSHOT"), "<packaging>pom</packaging>", modules("a", "b"),
+        pom(project, gav("demo.reactor", "parent", "1.0-SNAPSHOT"), "<packaging>pom</packaging>", modules("a", "b"),
                 "<properties><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>",
                 pluginManagement(System.getProperty(OFFLINE_PLUGINS_PROPERTY, "")));
-        pom(project.resolve("a"), parent("demo.t19", "parent", "1.0-SNAPSHOT"), artifact("a"),
+        pom(project.resolve("a"), parent("demo.reactor", "parent", "1.0-SNAPSHOT"), artifact("a"),
                 dependencies(dependency("com.example", "sample-lib", "<version>1.0.0</version>")));
-        pom(project.resolve("b"), parent("demo.t19", "parent", "1.0-SNAPSHOT"), artifact("b"),
-                dependencies(dependency("demo.t19", "a", "<version>${project.version}</version>")));
+        pom(project.resolve("b"), parent("demo.reactor", "parent", "1.0-SNAPSHOT"), artifact("b"),
+                dependencies(dependency("demo.reactor", "a", "<version>${project.version}</version>")));
         writeFile(project.resolve(".mvn/maven.config"), "-Dmaven.repo.local.tail=" + buildRepository + "\n");
 
         MavenResult probe = new ProcessMavenInvoker(env.mavenExecutable(), env.javaHome(), Duration.ofMinutes(2))

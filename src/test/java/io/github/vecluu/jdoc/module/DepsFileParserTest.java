@@ -135,6 +135,6 @@ class DepsFileParserTest {
         assertThat(deps.get(3).gav().artifactId()).isEqualTo("vineflower");
         assertThat(deps).extracting(dep -> dep.scope()).contains(Scope.COMPILE, Scope.RUNTIME, Scope.PROVIDED,
                 Scope.TEST);
-        assertThat(deps).noneMatch(dep -> dep.gav().groupId().equals("demo.t19"));
+        assertThat(deps).noneMatch(dep -> dep.gav().groupId().equals("demo.reactor"));
     }
 }

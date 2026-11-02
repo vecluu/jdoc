@@ -20,5 +20,5 @@ The following files have been resolved:
    org.assertj:assertj-core:jar:3.27.7:test:/home/user/.m2/repository/org/assertj/assertj-core/3.27.7/assertj-core-3.27.7.jar -- module org.assertj.core
    net.bytebuddy:byte-buddy:jar:1.18.3:test:/home/user/.m2/repository/net/bytebuddy/byte-buddy/1.18.3/byte-buddy-1.18.3.jar -- module net.bytebuddy
 
-   demo.t19:a:jar:1.0-SNAPSHOT:compile:/work/mm/a/target/classes
-   demo.t19:a:test-jar:tests:1.0-SNAPSHOT:test:/work/mm/a/target/test-classes
+   demo.reactor:a:jar:1.0-SNAPSHOT:compile:/work/mm/a/target/classes
+   demo.reactor:a:test-jar:tests:1.0-SNAPSHOT:test:/work/mm/a/target/test-classes

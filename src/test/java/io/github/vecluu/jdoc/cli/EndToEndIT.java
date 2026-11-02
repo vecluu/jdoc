@@ -35,8 +35,9 @@ import org.objectweb.asm.Opcodes;
 
 /**
  * jdoc end to end with real components and no network: a temp cache ({@code JDOC_CACHE}), a fake local Maven
- * repository with T01's fixture jars, temp Maven modules and a fake {@code mvn} script ({@code JDOC_MVN}) that copies a
- * prepared {@code deps.txt} (or fails when a marker file exists). The real JDK's {@code src.zip} is indexed once.
+ * repository with the test library jars, temp Maven modules and a fake {@code mvn} script ({@code JDOC_MVN}) that
+ * copies a prepared {@code deps.txt} (or fails when a marker file exists). The real JDK's {@code src.zip} is indexed
+ * once.
  */
 @Tag("slow")
 class EndToEndIT {

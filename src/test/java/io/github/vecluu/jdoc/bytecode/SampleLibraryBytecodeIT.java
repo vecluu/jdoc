@@ -24,7 +24,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Scans the real sample library binary jar and compares the result with source parsing (T04). */
+/** Scans the real sample library binary jar and compares the result with source parsing ({@link JavaSourceParser}). */
 class SampleLibraryBytecodeIT {
 
     @TempDir
