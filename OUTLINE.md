@@ -167,53 +167,9 @@ inherited from Object: getClass, notify, notifyAll, wait
 
 The skill carries the rules that stop guessing; AGENTS.md only makes sure the agent knows the skill exists. The skill's description is what opencode keeps in context, so it names the trigger plainly.
 
-`SKILL.md` in the opencode skills directory:
+The build is the primary signature check: compiling is free and catches wrong signatures. jdoc is for APIs the model does not know well (internal, niche or new major versions, unknown class or method names), for the first compile error on a library call (never guess twice), and for behaviour the compiler cannot check (null handling, exceptions, mutability, thread safety, defaults, deprecation). It is not needed for common JDK APIs or for calls the project's own code already makes. The reasoning is in `docs/SKILL-DESIGN.md`.
 
-```markdown
----
-name: jdoc
-description: Look up exact signatures and Javadoc of Java library and JDK APIs for the current Maven module. Use before calling any library method you have not verified in this session, instead of guessing or decompiling.
----
-
-# jdoc
-
-Answers come from the versions this module actually resolves.
-
-## When to call it
-- Before writing a call to a library or JDK API whose exact
-  signature, parameters or exceptions you have not verified
-  in this session: `jdoc method <Type>#<name>`.
-- Class name unknown: `jdoc find <part of name>`.
-- Exploring an unfamiliar type: `jdoc class <Type>` first,
-  then `jdoc method` for the members you will use.
-- Need an implementation of an interface: `jdoc impls <Type>`.
-- Know a method name, not its class: `jdoc member <name>`.
-
-## Rules
-- Exit 2 means ambiguous: pick the FQCN matching the file's
-  imports and re-run. Exit 1 means not on this classpath:
-  say so, do not invent the API.
-- Use `jdoc source` only when the docs leave behaviour unclear
-  (null handling, exceptions, thread safety, defaults).
-- Never unzip jars, read ~/.m2, or decompile classes yourself.
-- Use only public and protected API. Do not call types in
-  packages named `internal` or `impl`.
-- Working in another module than the shell's directory:
-  add `--from <path to the file you are editing>`.
-- A header tagged `[version unresolved]` means the version may
-  be wrong: tell the user.
-- Output ending with `page 1/N`: fetch more pages only if the
-  member you need is not on the page you have.
-```
-
-`AGENTS.md` section, for repos where the skill may not be loaded:
-
-```markdown
-## Java library APIs
-Never guess Java library or JDK method signatures and never
-decompile jars. Use the `jdoc` skill (CLI: `jdoc --help`)
-to look them up for the current module's dependency versions.
-```
+The files themselves are `dist/skill/SKILL.md` (installed into the opencode skills directory) and `dist/AGENTS-snippet.md` (pasted into a repo's `AGENTS.md`); they are the source of truth and are checked against the real `--help`. The embedded drafts that used to be here told the agent to call jdoc before every unverified library method, which over-triggers, and were replaced by T24.
 
 ## Build and airgap transfer
 
