@@ -28,15 +28,16 @@ Read the source of existing classes when you need detail; do not re-implement wh
   notes; the orchestrator files them as issues after the maintainer approves.
 - No task or issue numbers in code or committed docs ("T08's resolver", "#12"); describe the thing itself. Links to
   external bug reports are fine.
-- If your change alters behaviour described in `docs/SPEC.md`, a rule or a package's purpose, update `docs/SPEC.md`,
-  `docs/ARCHITECTURE.md` or the package's `package-info.java` in the same task (`DocReferencesIT` checks names and
-  paths, `PackageDependencyTest` the package layering, `JavadocPresenceTest` that every package and public type is
-  documented).
+- Update the `package-info.java`, Javadoc and comments of the packages you touch (`JavadocPresenceTest`). Change
+  `docs/SPEC.md`, `docs/ARCHITECTURE.md`, `README.md` or the licence notices only if your brief owns them, or as the
+  smallest fix a failing `DocReferencesIT` or `PackageDependencyTest` needs; otherwise list the change they need
+  under "Doc impact" in your notes (the section and the facts, not prose for the whole doc).
 
 ## When you finish
 
 1. `./mvnw -B -q -Djdoc.buildDir=target/<TASK-ID> verify` passes with no new skipped tests (report honestly if not).
 2. Write `tasks/notes/<TASK-ID>.md` (local, under ~80 lines): what you built (one line per public class), decisions and
-   deviations, changes outside your files, known gaps, a test summary, and a proposed commit split
+   deviations, changes outside your files, doc impact (SPEC, ARCHITECTURE, README sections to change and why),
+   known gaps, a test summary, and a proposed commit split
    (`<gitmoji> <type>(<scope>): <subject>` plus paths; the orchestrator adds `Refs #N` or `Closes #N`).
 3. Reply to the orchestrator in at most 15 lines: status, test result, notable decisions, open issues. No code.

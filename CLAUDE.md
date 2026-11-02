@@ -55,12 +55,11 @@ and the wave board; it is local and ignored by git, so the public trace of a tas
 
 ## Keep these current
 
-- `docs/SPEC.md` when behaviour, commands, output, options or limitations change.
-- A package's `package-info.java` when its purpose or package-wide rules change; `docs/ARCHITECTURE.md` when a rule,
-  the request path or a dependency changes (`DocReferencesIT` checks names and paths, `PackageDependencyTest` the
-  layering).
-- `THIRD-PARTY-NOTICES` and `NOTICE` when a bundled dependency changes (`LicenseNoticesIT` checks them).
-- `README.md` when commands, options, install steps or requirements change.
+- Docs next to the code (`package-info.java`, Javadoc, comments): whoever changes the code (`JavadocPresenceTest`).
+- Shared docs, by the orchestrator in the same commit as the change: `docs/SPEC.md` (behaviour, commands, output,
+  limitations), `docs/ARCHITECTURE.md` (rules, request path, dependencies), `README.md` (commands, install,
+  requirements), `THIRD-PARTY-NOTICES`/`NOTICE` (bundled dependencies). Agents report needed changes under
+  "Doc impact" in their notes (`docs/AGENT_GUIDE.md`).
 - Not `CHANGELOG.md`: it is compiled when a release is cut (`docs/RELEASING.md`).
 
 ## Public repository
