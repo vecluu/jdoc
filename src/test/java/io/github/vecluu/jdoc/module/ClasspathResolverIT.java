@@ -89,9 +89,9 @@ class ClasspathResolverIT {
             System.setOut(originalOut);
         }
 
-        assertThat(calls()).singleElement().asString().startsWith(app + " -o -q -B dependency:list "
+        assertThat(calls()).singleElement().asString().startsWith(project + " -o -q -B test-compile dependency:list "
                 + "-DincludeScope=test -DoutputAbsoluteArtifactFilename=true -DoutputFile="
-                + env.cachePaths().moduleDirectory(first.pomKey()) + "/");
+                + env.cachePaths().moduleDirectory(first.pomKey()) + "/").endsWith(" -pl app -am");
         assertThat(captured.toString(StandardCharsets.UTF_8)).isEmpty();
         assertThat(first.status()).isEqualTo(ResolutionStatus.RESOLVED);
         assertThat(first.dependencies()).containsExactly(sampleLib);
@@ -135,7 +135,9 @@ class ClasspathResolverIT {
     }
 
     @Test
-    void siblingFailureInModuleIsRetriedFromReactorRoot() throws Exception {
+    void failureInModuleIsRetriedFromReactorRoot() throws Exception {
+        pom(app, parent("com.acme", "root", "1.0-SNAPSHOT"), artifact("app"),
+                dependencies(dependency("com.example", "sample-lib")));
         Files.createFile(control.resolve("fail-in-module"));
 
         ModuleClasspath classpath = resolver().resolve(app);
@@ -143,6 +145,7 @@ class ClasspathResolverIT {
         assertThat(classpath.status()).isEqualTo(ResolutionStatus.RESOLVED);
         assertThat(classpath.dependencies()).containsExactly(sampleLib);
         assertThat(calls()).hasSize(2);
+        assertThat(calls().get(0)).startsWith(app + " ");
         assertThat(calls().get(1)).startsWith(project + " ").endsWith(" -pl app -am");
     }
 

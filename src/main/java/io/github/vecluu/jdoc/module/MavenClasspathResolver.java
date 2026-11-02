@@ -22,7 +22,8 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <ol>
  *   <li>cache hit ({@code modules/<key>/deps.txt} exists) → {@link ResolutionStatus#RESOLVED}, no Maven run;</li>
- *   <li>miss → run {@code mvn dependency:list}; on success store {@code deps.txt} and {@code meta.json};</li>
+ *   <li>miss → run {@code mvn dependency:list} (from the reactor root first if the module declares a sibling
+ *       dependency, see {@link MavenDependencyLister}); on success store {@code deps.txt} and {@code meta.json};</li>
  *   <li>Maven failed → the most recent good list of the same module, {@link ResolutionStatus#STALE}, one warning;</li>
  *   <li>no list at all → newest jars in the local repository for the declared dependencies,
  *       {@link ResolutionStatus#UNRESOLVED}, one warning;</li>
@@ -72,8 +73,10 @@ public final class MavenClasspathResolver implements ClasspathResolver {
                         new FileModuleSnapshotStore(environment.cachePaths(), new ModuleSnapshotCodec()),
                         new NioPathStamper(), environment.localRepository(), clock))
                 .lister(MavenDependencyLister.withExtraArguments(invoker, environment.localRepositoryExplicit()
-                        ? List.of("-Dmaven.repo.local=" + environment.localRepository())
-                        : List.of()))
+                                ? List.of("-Dmaven.repo.local=" + environment.localRepository())
+                                : List.of())
+                        .withFallbackGoal(new DependencyPluginLocator(environment.localRepository(),
+                                new MavenVersionComparator())::qualifiedListGoal))
                 .cache(new FileModuleCache(environment.cachePaths(), new ModuleMetaCodec()))
                 .parser(new DepsFileParser())
                 .guesser(new RepositoryVersionGuesser(environment.localRepository(), new MavenVersionComparator()))
@@ -96,7 +99,8 @@ public final class MavenClasspathResolver implements ClasspathResolver {
         }
 
         Path output = cache.newOutputFile(key.value());
-        MavenResult result = lister.list(moduleDirectory, Optional.of(reactor.rootDirectory()), output);
+        MavenResult result = lister.list(moduleDirectory, Optional.of(reactor.rootDirectory()),
+                dependsOnSibling(modulePom, reactor), output);
         if (result.success()) {
             cache.commit(output, new ModuleMeta(moduleDirectory, key.value(), key.fingerprints(), clock.instant()));
             String content = cache.readDependencyList(key.value())
@@ -108,6 +112,17 @@ public final class MavenClasspathResolver implements ClasspathResolver {
         return fallback(moduleDirectory, modulePom, key, reactor, result);
     }
 
+    private boolean dependsOnSibling(Path modulePom, Reactor reactor) {
+        return reactor.moduleCoordinates().size() > 1 && declaredDependencies(modulePom).stream()
+                .anyMatch(dependency -> reactor.moduleCoordinates().contains(dependency.coordinates()));
+    }
+
+    private List<DeclaredDependency> declaredDependencies(Path modulePom) {
+        return hierarchy.localChain(modulePom).poms().stream()
+                .flatMap(pom -> pom.dependencies().stream())
+                .toList();
+    }
+
     private ModuleClasspath fallback(Path moduleDirectory, Path modulePom, PomKey key, Reactor reactor,
                                      MavenResult result) {
         Optional<CachedDependencyList> lastGood = cache.latestFor(moduleDirectory);
@@ -116,8 +131,7 @@ public final class MavenClasspathResolver implements ClasspathResolver {
             return classpath(moduleDirectory, key, lastGood.get().content(), reactor, ResolutionStatus.STALE,
                     List.of("warning: mvn failed, using classpath resolved at " + time));
         }
-        List<DeclaredDependency> declared = hierarchy.localChain(modulePom).poms().stream()
-                .flatMap(pom -> pom.dependencies().stream())
+        List<DeclaredDependency> declared = declaredDependencies(modulePom).stream()
                 .filter(dependency -> !reactor.moduleCoordinates().contains(dependency.coordinates()))
                 .toList();
         List<ResolvedDependency> guessed = guesser.guess(declared).stream()

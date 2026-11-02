@@ -59,7 +59,6 @@ class MavenClasspathResolverTest {
         ModuleClasspath second = resolver().resolve(app);
 
         assertThat(maven.commands()).hasSize(1);
-        assertThat(maven.commands().getFirst().workingDirectory()).isEqualTo(app);
         assertThat(first.status()).isEqualTo(ResolutionStatus.RESOLVED);
         assertThat(first.warnings()).isEmpty();
         assertThat(first.moduleDirectory()).isEqualTo(app);
@@ -67,6 +66,32 @@ class MavenClasspathResolverTest {
         assertThat(first.dependencies()).extracting(dep -> dep.gav().toString()).containsExactly("org.ext:ext:2.0");
         assertThat(second).isEqualTo(first);
         assertThat(env.cachePaths().metaFile(first.pomKey())).exists();
+    }
+
+    @Test
+    void moduleDeclaringASiblingResolvesFromTheReactorRootFirst() {
+        maven.thenWrites(deps("org.ext:ext:jar:2.0:compile", "ext-2.0.jar"));
+
+        resolver().resolve(app);
+
+        assertThat(maven.commands()).singleElement().satisfies(command -> {
+            assertThat(command.workingDirectory()).isEqualTo(project);
+            assertThat(command.arguments()).contains("test-compile", "-Dmaven.main.skip=true")
+                    .endsWith("-pl", "app", "-am");
+        });
+    }
+
+    @Test
+    void moduleWithoutSiblingDependencyResolvesInItsOwnDirectory() {
+        pom(app, parent("com.acme", "root", "1.0"), artifact("app"), dependencies(dependency("org.ext", "ext")));
+        maven.thenWrites(deps("org.ext:ext:jar:2.0:compile", "ext-2.0.jar"));
+
+        resolver().resolve(app);
+
+        assertThat(maven.commands()).singleElement().satisfies(command -> {
+            assertThat(command.workingDirectory()).isEqualTo(app);
+            assertThat(command.arguments()).doesNotContain("test-compile", "-am");
+        });
     }
 
     @Test
@@ -112,7 +137,7 @@ class MavenClasspathResolverTest {
 
     @Test
     void failedResolutionIsRetriedOnNextCall() {
-        maven.thenFails("offline").thenFails("offline")
+        maven.thenFails("offline")
                 .thenWrites(deps("org.ext:ext:jar:2.0:compile", "ext-2.0.jar"));
         touch(repo.resolve("org/ext/ext/1.0/ext-1.0.jar"));
 
@@ -121,7 +146,7 @@ class MavenClasspathResolverTest {
 
         assertThat(unresolved.status()).isEqualTo(ResolutionStatus.UNRESOLVED);
         assertThat(resolved.status()).isEqualTo(ResolutionStatus.RESOLVED);
-        assertThat(maven.commands()).hasSize(3);
+        assertThat(maven.commands()).hasSize(2);
     }
 
     @Test

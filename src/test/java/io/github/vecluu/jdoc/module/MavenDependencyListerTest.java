@@ -114,4 +114,78 @@ class MavenDependencyListerTest {
         assertThat(result.success()).isFalse();
         assertThat(Files.exists(output)).isFalse();
     }
+
+    @Test
+    void reactorCommandRunsTestCompileWithCompilationSkipped() {
+        FakeMavenInvoker invoker = new FakeMavenInvoker().thenFails("sibling not found").thenWrites("deps");
+        Path output = tmp.resolve("deps.txt");
+
+        new MavenDependencyLister(invoker).list(tmp.resolve("b"), Optional.of(tmp), output);
+
+        assertThat(invoker.commands().get(1).arguments()).containsExactly("-o", "-q", "-B", "test-compile",
+                "dependency:list", "-DincludeScope=test", "-DoutputAbsoluteArtifactFilename=true",
+                "-DoutputFile=" + output, "-Dmaven.main.skip=true", "-Dmaven.test.skip=true",
+                "-Dmaven.resources.skip=true", "-pl", "b", "-am");
+    }
+
+    @Test
+    void reactorFirstSkipsTheModuleRun() {
+        FakeMavenInvoker invoker = new FakeMavenInvoker().thenWrites("deps").otherwiseFails();
+
+        MavenResult result = new MavenDependencyLister(invoker).list(tmp.resolve("b"), Optional.of(tmp), true,
+                tmp.resolve("o"));
+
+        assertThat(result.success()).isTrue();
+        assertThat(invoker.commands()).singleElement()
+                .satisfies(command -> assertThat(command.workingDirectory()).isEqualTo(tmp));
+    }
+
+    @Test
+    void reactorFirstWithoutReactorRunsInTheModule() {
+        FakeMavenInvoker invoker = new FakeMavenInvoker().thenWrites("deps");
+
+        new MavenDependencyLister(invoker).list(tmp, Optional.of(tmp), true, tmp.resolve("o"));
+
+        assertThat(invoker.commands()).singleElement()
+                .satisfies(command -> assertThat(command.arguments()).doesNotContain("-am", "test-compile"));
+    }
+
+    @Test
+    void missingPluginPrefixRetriesWithQualifiedGoalAndKeepsIt() {
+        String qualified = "org.apache.maven.plugins:maven-dependency-plugin:3.11.0:list";
+        FakeMavenInvoker invoker = new FakeMavenInvoker()
+                .thenFails("No plugin found for prefix 'dependency' in the current project")
+                .thenFails("sibling not found")
+                .thenWrites("deps");
+
+        MavenResult result = new MavenDependencyLister(invoker).withFallbackGoal(() -> Optional.of(qualified))
+                .list(tmp.resolve("b"), Optional.of(tmp), tmp.resolve("o"));
+
+        assertThat(result.success()).isTrue();
+        assertThat(invoker.commands()).extracting(command -> command.arguments().contains(qualified))
+                .containsExactly(false, true, true);
+        assertThat(invoker.commands().get(2).arguments()).doesNotContain("dependency:list").endsWith("-am");
+    }
+
+    @Test
+    void missingPluginPrefixWithoutLocalPluginKeepsTheFailure() {
+        FakeMavenInvoker invoker = new FakeMavenInvoker().thenFails("No plugin found for prefix 'dependency'");
+
+        MavenResult result = new MavenDependencyLister(invoker).withFallbackGoal(Optional::empty)
+                .list(tmp, Optional.empty(), tmp.resolve("o"));
+
+        assertThat(result.success()).isFalse();
+        assertThat(invoker.commands()).hasSize(1);
+    }
+
+    @Test
+    void otherFailuresDoNotAskForTheQualifiedGoal() {
+        FakeMavenInvoker invoker = new FakeMavenInvoker().thenFails("Could not resolve dependencies");
+
+        new MavenDependencyLister(invoker).withFallbackGoal(() -> {
+            throw new AssertionError("not expected");
+        }).list(tmp, Optional.empty(), tmp.resolve("o"));
+
+        assertThat(invoker.commands()).hasSize(1);
+    }
 }
