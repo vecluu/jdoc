@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 # Installs jdoc from the extracted release bundle (VERSION, install.sh, bin/jdoc, lib/jdoc.jar, skill/SKILL.md,
-# LICENSE, NOTICE, THIRD-PARTY-NOTICES; the licence files are copied to DIR/share/doc/jdoc/).
+# LICENSE, NOTICE, THIRD-PARTY-NOTICES; the licence files are copied to PREFIX/share/doc/jdoc/).
 #
-# Usage: install.sh [--prefix DIR] [--bindir DIR] [--skills-dir DIR] [--no-aot]
-#
-#   --prefix DIR      install root (default /opt/jdoc): DIR/lib/jdoc.jar, DIR/lib/native/, DIR/lib/jdoc.aot
-#   --bindir DIR      where the `jdoc` launcher goes (default /usr/local/bin)
-#   --skills-dir DIR  also install the opencode skill as DIR/jdoc/SKILL.md
-#   --no-aot          skip training the AOT cache (the launcher then uses its per-user fallback archive)
+# Usage and options: `install.sh --help` (printed by usage() below).
 #
 # Needs Java 25 on PATH (the same `java` the launcher will use). Runs offline. Besides copying the jar it
 #   1. extracts the sqlite native library for this machine once, so no call extracts it to /tmp;
@@ -16,7 +11,8 @@
 #      generated beforehand in its own JVM (with sources, javadoc only, binary only) in a temporary local repository;
 #      a failed attempt (e.g. a JVM crash) is retried once; a fallback prints one warning line with its reason;
 #   3. writes the cache's fingerprint (JVM flags, `stat` of the jar, java binary and JDK image) next to it.
-# Everything produced lives under the prefix. Re-running the installer rebuilds all of it.
+# Everything produced lives under the prefix. Re-running the installer rebuilds all of it. The defaults need no root;
+# run it as the user who calls jdoc, so it trains the cache with that user's `java`.
 set -euo pipefail
 
 # JVM flags of every call; the AOT cache is trained with exactly these.
@@ -73,11 +69,19 @@ die() {
 }
 warn() { echo "install.sh: warning: $*" >&2; }
 
-# Prints lines 5-10 of the header comment: editing the header above them shifts what is printed.
-usage() { sed -n '5,10s/^# \{0,1\}//p' "$0"; }
+usage() {
+  cat << 'EOF'
+Usage: install.sh [--prefix DIR] [--bindir DIR] [--skills-dir DIR] [--no-aot]
 
-prefix=/opt/jdoc
-bindir=/usr/local/bin
+  --prefix DIR      install root (default ~/.local/share/jdoc): DIR/lib/jdoc.jar, DIR/lib/native/, DIR/lib/jdoc.aot
+  --bindir DIR      where the `jdoc` launcher goes (default ~/.local/bin)
+  --skills-dir DIR  also install the opencode skill as DIR/jdoc/SKILL.md
+  --no-aot          skip training the AOT cache (the launcher then uses its per-user fallback archive)
+EOF
+}
+
+prefix=
+bindir=
 skills=
 train=1
 while [ $# -gt 0 ]; do
@@ -94,10 +98,16 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-here=$(cd "$(dirname "$0")" && pwd)
-if [ ! -f "$here/lib/jdoc.jar" ] || [ ! -f "$here/bin/jdoc" ]; then
-  die "lib/jdoc.jar or bin/jdoc missing next to install.sh; run it from the extracted release bundle"
+if [ -z "$prefix" ] || [ -z "$bindir" ]; then
+  [ -n "${HOME:-}" ] || die "HOME is not set; pass --prefix and --bindir"
 fi
+prefix=${prefix:-$HOME/.local/share/jdoc}
+bindir=${bindir:-$HOME/.local/bin}
+
+here=$(cd "$(dirname "$0")" && pwd)
+for f in lib/jdoc.jar bin/jdoc; do
+  [ -f "$here/$f" ] || die "$f missing next to install.sh; run it from the extracted release bundle"
+done
 
 java=$(command -v java) || die "jdoc needs Java 25 on PATH"
 java_version=$("$java" -version 2>&1) || true
@@ -299,3 +309,7 @@ fi
 version=unknown
 [ -f "$here/VERSION" ] && version=$(cat "$here/VERSION")
 echo "installed jdoc $version: $bindir/jdoc -> $lib/jdoc.jar"
+case ":${PATH:-}:" in
+  *":$bindir:"*) ;;
+  *) echo "note: $bindir is not on PATH; add it there to call jdoc by name" ;;
+esac

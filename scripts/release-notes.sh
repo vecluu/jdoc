@@ -40,7 +40,7 @@ gh release download v$version -R vecluu/jdoc
 gh attestation verify jdoc-$version.tar.gz -R vecluu/jdoc
 sha256sum -c SHA256SUMS
 tar xzf jdoc-$version.tar.gz
-sudo ./jdoc-$version/install.sh --skills-dir <opencode skills dir>
+./jdoc-$version/install.sh --skills-dir <opencode skills dir>
 \`\`\`
 
 Full history: [CHANGELOG.md](https://github.com/vecluu/jdoc/blob/v$version/CHANGELOG.md).

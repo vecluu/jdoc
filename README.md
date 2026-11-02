@@ -103,15 +103,19 @@ gh attestation verify jdoc-<version>.tar.gz -R vecluu/jdoc
 # copy both files to the target machine (this can be an airgapped one), then:
 sha256sum -c SHA256SUMS
 tar xzf jdoc-<version>.tar.gz
-sudo ./jdoc-<version>/install.sh --skills-dir <opencode skills dir>
+./jdoc-<version>/install.sh --skills-dir <opencode skills dir>
 ```
+
+Run the installer as the user who calls jdoc, with the same Java 25 on `PATH`: the AOT cache it trains is used only
+with that `java`. By default it installs into your home directory, so it needs no root. If `~/.local/bin` is not on
+your `PATH`, the installer says so; add it, or pick another `--bindir`.
 
 `install.sh` options:
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `--prefix DIR` | `/opt/jdoc` | Install root: `DIR/lib/jdoc.jar`, the extracted sqlite native library, the AOT cache, and the licence files in `DIR/share/doc/jdoc/` |
-| `--bindir DIR` | `/usr/local/bin` | Where the `jdoc` launcher goes |
+| `--prefix DIR` | `~/.local/share/jdoc` | Install root: `DIR/lib/jdoc.jar`, the extracted sqlite native library, the AOT cache, and the licence files in `DIR/share/doc/jdoc/` |
+| `--bindir DIR` | `~/.local/bin` | Where the `jdoc` launcher goes |
 | `--skills-dir DIR` | none | Also install the opencode skill as `DIR/jdoc/SKILL.md` |
 | `--no-aot` | off | Skip training the AOT cache; the launcher then uses a per-user fallback archive |
 

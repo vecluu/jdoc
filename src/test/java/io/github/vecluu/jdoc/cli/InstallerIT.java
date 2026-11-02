@@ -40,6 +40,8 @@ class InstallerIT {
 
     private static final String METHOD = "java.util.Optional#orElseThrow";
     private static final String CDS = "source: shared objects file";
+    /** The repository's {@code dist/}: the release bundle's files. */
+    private static final Path DIST = Path.of(System.getProperty("user.dir"), "dist");
 
     private final Prerequisites prerequisites = Prerequisites.fromEnvironment();
 
@@ -145,6 +147,57 @@ class InstallerIT {
         Run healed = jdoc(Map.of(), "--version");
         assertThat(healed.err).isEmpty();
         assertThat(Files.size(cache.resolve("cds/jdoc.jsa"))).as("broken archive rebuilt").isPositive();
+    }
+
+    /**
+     * Without {@code --prefix} and {@code --bindir} the installer needs no root: it installs under {@code $HOME}
+     * ({@code ~/.local/share/jdoc}, {@code ~/.local/bin}) and says so when the bindir is not on PATH.
+     */
+    @Test
+    void installerDefaultsToTheUsersHomeAndHintsWhenTheBindirIsNotOnPath() throws Exception {
+        assumeTrue(System.getProperty("os.name").startsWith("Linux"), "Linux only");
+        prerequisites.require(onPath("bash"), "bash needed");
+        Path bundle = bundle();
+        Path home = Files.createDirectories(tmp.resolve("ho me"));
+
+        Run install = run(List.of("bash", bundle.resolve("install.sh").toString(), "--no-aot"),
+                Map.of("HOME", home.toString()));
+
+        assertThat(install.code).as(install.toString()).isZero();
+        assertThat(install.err).as(install.toString()).isEmpty();
+        Path bin = home.resolve(".local/bin");
+        assertThat(home.resolve(".local/share/jdoc/lib/jdoc.jar")).isRegularFile();
+        assertThat(bin.resolve("jdoc")).isExecutable();
+        assertThat(install.out).as(install.toString())
+                .contains("note: " + bin + " is not on PATH; add it there to call jdoc by name");
+        Run version = run(List.of(bin.resolve("jdoc").toString(), "--version"), Map.of());
+        assertThat(version.code).as(version.toString()).isZero();
+        assertThat(version.out).startsWith("jdoc ");
+
+        String path = String.join(File.pathSeparator, bin.toString(),
+                Path.of(System.getProperty("java.home"), "bin").toString(), System.getenv("PATH"));
+        Run onPath = run(List.of("bash", bundle.resolve("install.sh").toString(), "--no-aot"),
+                Map.of("HOME", home.toString(), "PATH", path));
+        assertThat(onPath.code).as(onPath.toString()).isZero();
+        assertThat(onPath.out).as(onPath.toString()).doesNotContain("not on PATH");
+    }
+
+    /** {@code --help} prints the usage with every option and exits 0; an unknown option prints it on stderr. */
+    @Test
+    void helpListsEveryOption() throws Exception {
+        prerequisites.require(onPath("bash"), "bash needed");
+        String script = DIST.resolve("install.sh").toString();
+
+        Run help = run(List.of("bash", script, "--help"), Map.of());
+        assertThat(help.code).as(help.toString()).isZero();
+        assertThat(help.err).as(help.toString()).isEmpty();
+        assertThat(help.out).as(help.toString()).startsWith("Usage: install.sh ")
+                .contains("--prefix DIR", "--bindir DIR", "--skills-dir DIR", "--no-aot");
+
+        Run unknown = run(List.of("bash", script, "--bogus"), Map.of());
+        assertThat(unknown.code).isEqualTo(1);
+        assertThat(unknown.err).startsWith("Usage: install.sh ").contains("--no-aot")
+                .endsWith("install.sh: unknown option: --bogus\n");
     }
 
     /**
@@ -332,16 +385,15 @@ class InstallerIT {
     }
 
     private Path bundle() throws IOException, URISyntaxException {
-        Path dist = Path.of(System.getProperty("user.dir"), "dist");
         Path jar = fatJar();
         prerequisites.require(Files.isRegularFile(jar), "fat jar not built: " + jar);
-        prerequisites.require(Files.isRegularFile(dist.resolve("install.sh")), "dist/install.sh not found");
+        prerequisites.require(Files.isRegularFile(DIST.resolve("install.sh")), "dist/install.sh not found");
         Path bundle = Files.createDirectories(tmp.resolve("bundle"));
         Files.createDirectories(bundle.resolve("bin"));
         Files.createDirectories(bundle.resolve("lib"));
         Files.createDirectories(bundle.resolve("skill"));
-        Files.copy(dist.resolve("install.sh"), bundle.resolve("install.sh"));
-        Files.copy(dist.resolve("bin/jdoc"), bundle.resolve("bin/jdoc"));
+        Files.copy(DIST.resolve("install.sh"), bundle.resolve("install.sh"));
+        Files.copy(DIST.resolve("bin/jdoc"), bundle.resolve("bin/jdoc"));
         Files.copy(jar, bundle.resolve("lib/jdoc.jar"));
         Files.writeString(bundle.resolve("skill/SKILL.md"), "skill\n");
         Files.writeString(bundle.resolve("VERSION"), "0.0.0-it\n");
