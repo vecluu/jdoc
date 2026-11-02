@@ -43,11 +43,6 @@ public sealed interface MemberLookup
             suggestions = List.copyOf(suggestions);
             protectedInherited = List.copyOf(protectedInherited);
         }
-
-        /** A not-found outcome without hidden protected matches. */
-        public MemberNotFound(LocatedType type, MemberReference reference, List<String> suggestions) {
-            this(type, reference, suggestions, List.of());
-        }
     }
 
     /**

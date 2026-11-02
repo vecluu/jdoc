@@ -67,9 +67,4 @@ public record LookupScope(List<ScopedArtifact> artifacts, ResolutionStatus statu
         }
         return Comparator.comparingInt(value -> ranks.getOrDefault(artifactId.applyAsLong(value), Integer.MAX_VALUE));
     }
-
-    /** True if the scope has no artifacts. */
-    public boolean isEmpty() {
-        return artifacts.isEmpty();
-    }
 }
