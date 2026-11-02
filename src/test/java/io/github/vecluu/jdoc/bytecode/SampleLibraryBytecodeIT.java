@@ -31,14 +31,17 @@ class SampleLibraryBytecodeIT {
     static Path tmp;
 
     private static Map<TypeName, ScannedClass> scanned;
-    private static JarScanSummary summary;
+    private static int received;
 
     @BeforeAll
     static void scan() {
         BuiltLibrary library = SampleLibrary.builder().parameters(true).withSources(false).withJavadoc(false)
                 .build().writeTo(tmp.resolve("with-parameters"));
         Map<TypeName, ScannedClass> result = new LinkedHashMap<>();
-        summary = new ZipBinaryJarScanner().scan(library.binaryJar(), c -> result.put(c.type().name(), c));
+        new ZipBinaryJarScanner().scan(library.binaryJar(), c -> {
+            received++;
+            result.put(c.type().name(), c);
+        });
         scanned = result;
     }
 
@@ -52,7 +55,7 @@ class SampleLibraryBytecodeIT {
         expected.add(SampleLibrary.SHAPE_CACHE);
 
         assertThat(scanned.keySet()).containsExactlyInAnyOrderElementsOf(expected);
-        assertThat(summary.typeCount()).isEqualTo(expected.size());
+        assertThat(received).isEqualTo(expected.size());
         assertThat(scanned.values()).allSatisfy(c -> assertThat(c.type().docSource()).isEqualTo(DocSource.DECOMPILED));
     }
 
@@ -143,7 +146,9 @@ class SampleLibraryBytecodeIT {
     void withoutParametersAttributeNamesAreArgN(@TempDir Path dir) {
         BuiltLibrary library = SampleLibrary.builder().withSources(false).withJavadoc(false).build().writeTo(dir);
 
-        ScannedClass circle = new ZipBinaryJarScanner().scanAll(library.binaryJar()).stream()
+        List<ScannedClass> classes = new ArrayList<>();
+        new ZipBinaryJarScanner().scan(library.binaryJar(), classes::add);
+        ScannedClass circle = classes.stream()
                 .filter(c -> c.type().name().equals(SampleLibrary.CIRCLE)).findFirst().orElseThrow();
         assertThat(circle.members().stream().map(MemberDescriptor::signature))
                 .contains("Circle(double arg0, Color arg1)", "Circle scale(double arg0)");

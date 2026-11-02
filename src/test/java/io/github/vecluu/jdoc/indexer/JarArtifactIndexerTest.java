@@ -3,7 +3,6 @@ package io.github.vecluu.jdoc.indexer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.vecluu.jdoc.bytecode.BinaryJarScanner;
-import io.github.vecluu.jdoc.bytecode.JarScanSummary;
 import io.github.vecluu.jdoc.bytecode.ScannedClass;
 import io.github.vecluu.jdoc.javadoc.JavadocPageParser;
 import io.github.vecluu.jdoc.model.ArtifactKey;
@@ -48,9 +47,8 @@ class JarArtifactIndexerTest {
                 Scanned.type("p.Plain"));
 
         @Override
-        public JarScanSummary scan(Path jar, Consumer<ScannedClass> consumer) {
+        public void scan(Path jar, Consumer<ScannedClass> consumer) {
             classes.forEach(consumer);
-            return new JarScanSummary(classes.size());
         }
     }
 

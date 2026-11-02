@@ -13,6 +13,7 @@ import io.github.vecluu.jdoc.testsupport.Prerequisites;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -75,7 +76,9 @@ class Jdk8JavadocParameterNamesIT {
 
     private static Map<String, MemberDescriptor> members(TypeDocResolver resolver, ZipBinaryJarScanner scanner,
                                                          Path jar, String type) {
-        ScannedClass scanned = scanner.scanAll(jar).stream()
+        List<ScannedClass> classes = new ArrayList<>();
+        scanner.scan(jar, classes::add);
+        ScannedClass scanned = classes.stream()
                 .filter(c -> c.type().name().equals(TypeName.of(type))).findFirst().orElseThrow();
         TypeEntry entry = resolver.resolve(scanned.type().name(), List.of(scanned)).getFirst();
         return entry.memberDescriptors().stream()

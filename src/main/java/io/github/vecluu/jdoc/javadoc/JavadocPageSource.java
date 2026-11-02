@@ -13,7 +13,4 @@ public interface JavadocPageSource {
      * @throws io.github.vecluu.jdoc.error.JarReadException if the container cannot be read
      */
     Optional<String> page(String entryPath);
-
-    /** True if the page exists. */
-    boolean hasPage(String entryPath);
 }

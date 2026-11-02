@@ -28,11 +28,6 @@ public final class ZipArchiveOpener implements ArchiveOpener {
             }
 
             @Override
-            public boolean hasPage(String entryPath) {
-                return javadoc.hasPage(entryPath);
-            }
-
-            @Override
             public void close() {
                 javadoc.close();
             }

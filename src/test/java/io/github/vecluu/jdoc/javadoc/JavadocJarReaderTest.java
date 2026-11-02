@@ -23,11 +23,6 @@ class JavadocJarReaderTest {
         public Optional<String> page(String entryPath) {
             return Optional.ofNullable(pages.get(entryPath));
         }
-
-        @Override
-        public boolean hasPage(String entryPath) {
-            return pages.containsKey(entryPath);
-        }
     }
 
     private static String typePage(String description, String since) {

@@ -57,12 +57,6 @@ public final class JavadocJar implements JavadocPageSource, AutoCloseable {
     }
 
     @Override
-    public boolean hasPage(String entryPath) {
-        ZipEntry entry = zip.getEntry(entryPath);
-        return entry != null && !entry.isDirectory();
-    }
-
-    @Override
     public void close() {
         try {
             zip.close();

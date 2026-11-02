@@ -39,11 +39,6 @@ final class MapJavadocArchive implements JavadocArchive {
     }
 
     @Override
-    public boolean hasPage(String entryPath) {
-        return pages.containsKey(entryPath);
-    }
-
-    @Override
     public void close() {
         closed = true;
     }

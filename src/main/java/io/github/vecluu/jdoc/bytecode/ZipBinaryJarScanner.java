@@ -30,8 +30,7 @@ public final class ZipBinaryJarScanner implements BinaryJarScanner {
     }
 
     @Override
-    public JarScanSummary scan(Path jar, Consumer<ScannedClass> consumer) {
-        int types = 0;
+    public void scan(Path jar, Consumer<ScannedClass> consumer) {
         try (ZipFile zip = new ZipFile(jar.toFile())) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
@@ -42,16 +41,11 @@ public final class ZipBinaryJarScanner implements BinaryJarScanner {
                         || name.equals(PACKAGE_INFO) || name.endsWith("/" + PACKAGE_INFO)) {
                     continue;
                 }
-                Optional<ScannedClass> scanned = readEntry(zip, entry, jar);
-                if (scanned.isPresent()) {
-                    types++;
-                    consumer.accept(scanned.get());
-                }
+                readEntry(zip, entry, jar).ifPresent(consumer);
             }
         } catch (IOException e) {
             throw new JarReadException("cannot read jar " + jar + ": " + e.getMessage(), e);
         }
-        return new JarScanSummary(types);
     }
 
     /** Reads one class entry: the type, or empty if it is not a named type or unreadable (logged). */

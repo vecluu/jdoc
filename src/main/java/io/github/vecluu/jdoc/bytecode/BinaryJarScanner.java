@@ -1,8 +1,6 @@
 package io.github.vecluu.jdoc.bytecode;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -19,12 +17,5 @@ public interface BinaryJarScanner {
      *
      * @throws io.github.vecluu.jdoc.error.JarReadException if the jar cannot be opened or read
      */
-    JarScanSummary scan(Path jar, Consumer<ScannedClass> consumer);
-
-    /** Convenience: all classes of the jar in a list (fine for tests and small jars). */
-    default List<ScannedClass> scanAll(Path jar) {
-        List<ScannedClass> result = new ArrayList<>();
-        scan(jar, result::add);
-        return result;
-    }
+    void scan(Path jar, Consumer<ScannedClass> consumer);
 }

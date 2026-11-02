@@ -43,18 +43,12 @@ class ZipBinaryJarScannerTest {
     @Test
     void scansNamedClassesSkippingPackageInfosAndUnreadableEntries() throws IOException {
         List<ScannedClass> seen = new ArrayList<>();
-        JarScanSummary summary = scanner.scan(jar(), seen::add);
+        scanner.scan(jar(), seen::add);
 
         assertThat(seen).extracting(c -> c.type().name().binaryName())
                 .containsExactlyInAnyOrder("a.A", "a.A$Inner", "b.B");
         assertThat(seen.stream().filter(c -> c.type().name().binaryName().equals("a.A")).findFirst().orElseThrow()
                 .members()).extracting(m -> m.signature()).containsExactly("A()");
-        assertThat(summary.typeCount()).isEqualTo(3);
-    }
-
-    @Test
-    void scanAllCollectsIntoList() throws IOException {
-        assertThat(scanner.scanAll(jar())).hasSize(3);
     }
 
     @Test

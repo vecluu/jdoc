@@ -33,8 +33,6 @@ class JavadocJarTest {
             assertThat(javadoc.page("a/C.html")).contains("<p>plain é</p>");
             assertThat(javadoc.page("a/Missing.html")).isEmpty();
             assertThat(javadoc.page("a/")).isEmpty();
-            assertThat(javadoc.hasPage("a/A.html")).isTrue();
-            assertThat(javadoc.hasPage("a/Missing.html")).isFalse();
         }
     }
 
