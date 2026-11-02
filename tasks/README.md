@@ -44,9 +44,9 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | T19 | done | `tasks/notes/T19.md` |
 | T20 | todo | `tasks/notes/T20.md` |
 | T21 | done | `tasks/notes/T21.md` |
-| T22 | todo | `tasks/notes/T22.md` |
-| T23 | todo | `tasks/notes/T23.md` |
-| T24 | todo | `tasks/notes/T24.md` |
+| T22 | done (uncommitted) | `tasks/notes/T22.md` |
+| T23 | done (uncommitted) | `tasks/notes/T23.md` |
+| T24 | done (uncommitted) | `tasks/notes/T24.md` |
 
 ## Backlog (follow-ups found during implementation; not yet scheduled)
 
