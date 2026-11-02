@@ -39,7 +39,8 @@
         <revision>0.0.0-SNAPSHOT</revision>
         <!-- Reproducible jar: every entry gets this timestamp. A fixed default for development builds; when
              SOURCE_DATE_EPOCH is set (CI sets it to the commit time, scripts/assemble.sh uses the same value for the
-             tarball), the profile "source-date-epoch" below uses it instead, so one commit builds one jar. -->
+             tarball), the profile "source-date-epoch" below uses it instead, so one commit builds one jar. Only with
+             the same toolchain, though: a JDK whose libzip uses the system zlib deflates differently than CI's. -->
         <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -151,6 +152,8 @@
                     <parameters>true</parameters>
                     <compilerArgs>
                         <arg>-Xlint:all,-processing,-serial</arg>
+                        <!-- broken {@link}s and malformed Javadoc fail the compile (main and test sources) -->
+                        <arg>-Xdoclint:reference,syntax</arg>
                     </compilerArgs>
                     <annotationProcessorPaths>
                         <path>
