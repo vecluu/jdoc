@@ -7,9 +7,10 @@ final class Schema {
 
     /**
      * Value stored in {@code PRAGMA user_version}. 2: {@code failed_artifacts}. 3: rendered docs
-     * ({@code type_docs}, {@code member_docs}, {@code package_docs}).
+     * ({@code type_docs}, {@code member_docs}, {@code package_docs}). 4: no change to the tables; stored signatures
+     * changed (javadoc parameter names, no implicit interface modifiers), so older indexes are rebuilt.
      */
-    static final int VERSION = 3;
+    static final int VERSION = 4;
 
     static final List<String> STATEMENTS = List.of(
             """
