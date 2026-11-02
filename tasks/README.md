@@ -38,8 +38,20 @@ Each `Txx-*.md` file is a self-contained brief for one implementing agent. The o
 | T14 | done | `tasks/notes/T14.md` |
 | T15 | done | `tasks/notes/T15.md` |
 | T16 | done | `tasks/notes/T16.md` |
-| T17 | in progress | `tasks/notes/T17.md` |
+| T17 | done (uncommitted) | `tasks/notes/T17.md` |
 | T18 | todo | `tasks/notes/T18.md` |
-| T19 | in progress | `tasks/notes/T19.md` |
+| T19 | done (uncommitted) | `tasks/notes/T19.md` |
 | T20 | todo | `tasks/notes/T20.md` |
-| T21 | in progress | `tasks/notes/T21.md` |
+| T21 | done (uncommitted) | `tasks/notes/T21.md` |
+
+## Backlog (follow-ups found during implementation; not yet scheduled)
+
+- Javadoc-only artifacts show `arg0`/`arg1` parameter names; take real names from the javadoc HTML (T05/T08 area).
+- Interface methods render with `abstract` (implicit modifier); consider omitting implicit `abstract` on interface
+  methods and `public static final` noise on interface fields in rendered signatures (T04/T05 must stay identical).
+- `jdoc find Document` ranks `javax.swing.text.Document` above jsoup's `Document`; consider preferring module
+  dependencies over JDK types at equal score.
+- Optional: installer copies LICENSE/NOTICE/THIRD-PARTY-NOTICES into the install prefix (T17 area).
+- Fallback CDS archive only contains the classes of the call that created it (weak if that was `--version`);
+  consider training it explicitly or regenerating it after a real lookup (T17 area).
+- AOT training covers JDK lookups only; library-jar indexing classes are not in the cache (T17 area).

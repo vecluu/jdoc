@@ -33,3 +33,6 @@ Environment note: Maven 3.10.0 is at `/opt/maven/apache-maven-3.10.0/bin/mvn`. A
 
 License files (from T21): the tarball root must contain `LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES`
 (see `docs/LICENSE-COMPLIANCE.md`); the install check should assert they are present.
+
+From T17: the wrapper and installer were not checked with `shellcheck` or `dash`. In CI, install shellcheck and run
+it on all scripts, and run the installed wrapper under `dash` (the wrapper is `#!/bin/sh`).
