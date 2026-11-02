@@ -66,6 +66,7 @@ The index stores where each type and member lives, its first doc sentence and it
   modules/<key>/deps.txt    resolved classpath per module
   modules/<key>/meta.json   module path, POM hashes, resolved-at
   module-snapshots/         file stamps per module; skips POM parsing and hashing while nothing changed
+  cds/jdoc.jsa              fallback CDS archive, used by the wrapper only when the AOT cache does not match
   decompiled/<g>/<a>/<v>/   Vineflower output, written once
   lock                      held while indexing
 ```
@@ -392,7 +393,7 @@ echo "smoke test passed"
 
 `dist/install.sh`, run inside the airgap:
 
-> Extended by T17 (sqlite library extraction, two-step AOT training, cache fingerprint).
+> Implemented by T17: installs into `<prefix>/lib/` (`jdoc.jar`, the extracted sqlite native library, `jdoc.aot` cache of ~36 MB and `jdoc.aot.key`), trains the AOT cache in two steps (~8.5 s) against a throwaway module with a fake `mvn` and a temp cache (training is triggered by the hidden system property `-Djdoc.aotTraining`, not a CLI command), and only warns if training fails.
 
 ```bash
 #!/usr/bin/env bash
@@ -420,7 +421,7 @@ echo "installed jdoc $(cat "$here/VERSION")"
 
 `dist/bin/jdoc`, the wrapper template the installer fills in:
 
-> Drafts below are superseded by `tasks/T17-aot-wrapper-installer.md` once implemented: the wrapper adds `-XX:+UseSerialGC -XX:-UsePerfData`, the pre-extracted sqlite library and a fingerprint-checked AOT cache; the installer gains the sqlite extraction and AOT training steps.
+> Implemented by T17; the real files are `dist/bin/jdoc` and `dist/install.sh`, and the draft below is historical. The wrapper adds `-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:-UsePerfData`, points sqlite-jdbc at the pre-extracted native library, and passes `-XX:AOTCache` only when the fingerprint in `<prefix>/lib/jdoc.aot.key` (jar, `java` binary, JDK `release` and `lib/modules` stats) still matches; otherwise it falls back silently to `${JDOC_CACHE}/cds/jdoc.jsa`. JVM logging is routed to stderr with cache warnings off, so stdout stays the answer. `JDOC_JAVA_OPTS` adds JVM options; `JDOC_WRAPPER_DEBUG=1` prints the chosen mode to stderr.
 
 ```sh
 #!/bin/sh
