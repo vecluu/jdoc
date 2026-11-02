@@ -171,8 +171,9 @@ class InstallerIT {
     }
 
     /**
-     * A JVM crash while creating the cache (as JDK 25.0.5 did once, see {@code tasks/notes/T26.md}) is retried once
-     * with a fresh recording without training data; the installer says so on stdout, and the cache is complete.
+     * A JVM crash while creating the cache (a rare HotSpot SIGSEGV in JDK 25, similar to JDK-8366948; see the gotchas
+     * in {@code docs/codemap/build-and-delivery.md}) is retried once with a fresh recording without training data;
+     * the installer says so on stdout, and the cache is complete.
      */
     @Test
     void installerRetriesTheTrainingOnceWhenTheJvmCrashesCreatingTheCache() throws Exception {
