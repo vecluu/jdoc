@@ -15,8 +15,6 @@ PREV=$(git describe --tags --abbrev=0)   # the last release tag
 - **`CHANGELOG.md` is written at release time, not during development.** Agents never edit it while working on a
   task. `scripts/release-notes.sh <version>` fails when `CHANGELOG.md` has no non-empty `[<version>]` section, and CI
   runs it first on tags and dry runs, so step 1 below is required.
-- **Dispatch dry runs on a branch, never on a tag ref.** Until T32 lands, the release job publishes whenever the ref
-  is a `v*` tag, even with `release-dry-run` set.
 - **Reproducible builds depend on the JDK's zlib.** The same commit, version and `SOURCE_DATE_EPOCH` give the same
   jar entries and timestamps everywhere, but the compressed bytes (and so the checksums) match only a build with the
   CI toolchain (Temurin 25 on `ubuntu-24.04`). Check a release against a CI dry run, not a local build.
