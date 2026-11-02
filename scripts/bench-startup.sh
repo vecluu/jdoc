@@ -209,6 +209,7 @@ new_dep_serial=0
 
 # Adds a dependency the index has never seen to the new-dependency module: a new version of bench.fresh:<flavour>
 # with copies of the jars, declared in the module's POM and listed by the fake mvn.
+# shellcheck disable=SC2317 # called indirectly, as the prepare command of measure
 add_new_dependency() {
   local flavour=$1 version dir
   new_dep_serial=$((new_dep_serial + 1))
