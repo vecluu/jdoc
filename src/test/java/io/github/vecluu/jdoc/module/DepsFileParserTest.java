@@ -120,4 +120,21 @@ class DepsFileParserTest {
         assertThat(parser.parse(io.github.vecluu.jdoc.testsupport.FakeMavenRepo.depsTxt(List.of(dep))))
                 .containsExactly(dep);
     }
+
+    @Test
+    void parsesRealMaven3Plugin37OutputIncludingReactorDirectories() throws Exception {
+        String content;
+        try (var in = getClass().getResourceAsStream("real-dependency-list.txt")) {
+            content = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+
+        List<ResolvedDependency> deps = new DepsFileParser(path -> path.toString().endsWith(".jar")).parse(content);
+
+        assertThat(deps).hasSize(19);
+        assertThat(deps.get(0).gav()).isEqualTo(Gav.of("org.xerial", "sqlite-jdbc", "3.54.1.0"));
+        assertThat(deps.get(3).gav().artifactId()).isEqualTo("vineflower");
+        assertThat(deps).extracting(dep -> dep.scope()).contains(Scope.COMPILE, Scope.RUNTIME, Scope.PROVIDED,
+                Scope.TEST);
+        assertThat(deps).noneMatch(dep -> dep.gav().groupId().equals("demo.t19"));
+    }
 }

@@ -1,0 +1,24 @@
+
+The following files have been resolved:
+   org.xerial:sqlite-jdbc:jar:3.54.1.0:compile:/home/user/.m2/repository/org/xerial/sqlite-jdbc/3.54.1.0/sqlite-jdbc-3.54.1.0.jar -- module org.xerial.sqlitejdbc
+   org.jsoup:jsoup:jar:1.23.2:compile:/home/user/.m2/repository/org/jsoup/jsoup/1.23.2/jsoup-1.23.2.jar -- module org.jsoup
+   org.ow2.asm:asm:jar:9.11.1:compile:/home/user/.m2/repository/org/ow2/asm/asm/9.11.1/asm-9.11.1.jar -- module org.objectweb.asm
+   org.vineflower:vineflower:jar:1.12.0:compile:/home/user/.m2/repository/org/vineflower/vineflower/1.12.0/vineflower-1.12.0.jar -- module org.jetbrains.java.decompiler [auto]
+   org.slf4j:slf4j-api:jar:2.0.17:compile:/home/user/.m2/repository/org/slf4j/slf4j-api/2.0.17/slf4j-api-2.0.17.jar -- module org.slf4j
+   org.slf4j:slf4j-simple:jar:2.0.17:runtime:/home/user/.m2/repository/org/slf4j/slf4j-simple/2.0.17/slf4j-simple-2.0.17.jar -- module org.slf4j.simple
+   org.projectlombok:lombok:jar:1.18.48:provided:/home/user/.m2/repository/org/projectlombok/lombok/1.18.48/lombok-1.18.48.jar -- module lombok
+   org.junit.jupiter:junit-jupiter:jar:6.1.3:test:/home/user/.m2/repository/org/junit/jupiter/junit-jupiter/6.1.3/junit-jupiter-6.1.3.jar -- module org.junit.jupiter
+   org.junit.jupiter:junit-jupiter-api:jar:6.1.3:test:/home/user/.m2/repository/org/junit/jupiter/junit-jupiter-api/6.1.3/junit-jupiter-api-6.1.3.jar -- module org.junit.jupiter.api
+   org.opentest4j:opentest4j:jar:1.3.0:test:/home/user/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar -- module org.opentest4j
+   org.junit.platform:junit-platform-commons:jar:6.1.3:test:/home/user/.m2/repository/org/junit/platform/junit-platform-commons/6.1.3/junit-platform-commons-6.1.3.jar -- module org.junit.platform.commons
+   org.junit.jupiter:junit-jupiter-params:jar:6.1.3:test:/home/user/.m2/repository/org/junit/jupiter/junit-jupiter-params/6.1.3/junit-jupiter-params-6.1.3.jar -- module org.junit.jupiter.params
+   org.junit.jupiter:junit-jupiter-engine:jar:6.1.3:test:/home/user/.m2/repository/org/junit/jupiter/junit-jupiter-engine/6.1.3/junit-jupiter-engine-6.1.3.jar -- module org.junit.jupiter.engine
+   org.junit.platform:junit-platform-launcher:jar:6.1.3:test:/home/user/.m2/repository/org/junit/platform/junit-platform-launcher/6.1.3/junit-platform-launcher-6.1.3.jar -- module org.junit.platform.launcher
+   org.junit.platform:junit-platform-engine:jar:6.1.3:test:/home/user/.m2/repository/org/junit/platform/junit-platform-engine/6.1.3/junit-platform-engine-6.1.3.jar -- module org.junit.platform.engine
+   org.apiguardian:apiguardian-api:jar:1.1.2:test:/home/user/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar -- module org.apiguardian.api
+   org.jspecify:jspecify:jar:1.0.0:test:/home/user/.m2/repository/org/jspecify/jspecify/1.0.0/jspecify-1.0.0.jar -- module org.jspecify
+   org.assertj:assertj-core:jar:3.27.7:test:/home/user/.m2/repository/org/assertj/assertj-core/3.27.7/assertj-core-3.27.7.jar -- module org.assertj.core
+   net.bytebuddy:byte-buddy:jar:1.18.3:test:/home/user/.m2/repository/net/bytebuddy/byte-buddy/1.18.3/byte-buddy-1.18.3.jar -- module net.bytebuddy
+
+   demo.t19:a:jar:1.0-SNAPSHOT:compile:/work/mm/a/target/classes
+   demo.t19:a:test-jar:tests:1.0-SNAPSHOT:test:/work/mm/a/target/test-classes
