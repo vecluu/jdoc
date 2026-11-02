@@ -50,12 +50,7 @@ class JarArtifactIndexerTest {
         @Override
         public JarScanSummary scan(Path jar, Consumer<ScannedClass> consumer) {
             classes.forEach(consumer);
-            return new JarScanSummary(classes.size(), 0, List.of());
-        }
-
-        @Override
-        public Optional<ScannedClass> readClass(Path jar, TypeName type) {
-            return classes.stream().filter(c -> c.type().name().equals(type)).findFirst();
+            return new JarScanSummary(classes.size());
         }
     }
 

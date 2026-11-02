@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.vecluu.jdoc.error.JarReadException;
-import io.github.vecluu.jdoc.model.TypeName;
 import io.github.vecluu.jdoc.testsupport.JarWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,7 +41,7 @@ class ZipBinaryJarScannerTest {
     }
 
     @Test
-    void scansNamedClassesAndPackageInfos() throws IOException {
+    void scansNamedClassesSkippingPackageInfosAndUnreadableEntries() throws IOException {
         List<ScannedClass> seen = new ArrayList<>();
         JarScanSummary summary = scanner.scan(jar(), seen::add);
 
@@ -51,24 +50,11 @@ class ZipBinaryJarScannerTest {
         assertThat(seen.stream().filter(c -> c.type().name().binaryName().equals("a.A")).findFirst().orElseThrow()
                 .members()).extracting(m -> m.signature()).containsExactly("A()");
         assertThat(summary.typeCount()).isEqualTo(3);
-        assertThat(summary.skippedEntries()).isEqualTo(1);
-        assertThat(summary.packageInfoPackages()).containsExactly("a");
     }
 
     @Test
     void scanAllCollectsIntoList() throws IOException {
         assertThat(scanner.scanAll(jar())).hasSize(3);
-    }
-
-    @Test
-    void readsSingleClass() throws IOException {
-        Path jar = jar();
-
-        assertThat(scanner.readClass(jar, TypeName.of("b.B"))).map(c -> c.members().getFirst().signature())
-                .contains("void run()");
-        assertThat(scanner.readClass(jar, TypeName.of("a.Missing"))).isEmpty();
-        assertThat(scanner.readClass(jar, TypeName.of("a.A$1"))).isEmpty();
-        assertThat(scanner.readClass(jar, TypeName.of("c.Broken"))).isEmpty();
     }
 
     @Test
@@ -78,7 +64,5 @@ class ZipBinaryJarScannerTest {
         assertThatThrownBy(() -> scanner.scan(tmp.resolve("missing.jar"), c -> { }))
                 .isInstanceOf(JarReadException.class);
         assertThatThrownBy(() -> scanner.scan(notAJar, c -> { })).isInstanceOf(JarReadException.class);
-        assertThatThrownBy(() -> scanner.readClass(notAJar, TypeName.of("a.A")))
-                .isInstanceOf(JarReadException.class);
     }
 }

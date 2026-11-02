@@ -75,7 +75,8 @@ class Jdk8JavadocParameterNamesIT {
 
     private static Map<String, MemberDescriptor> members(TypeDocResolver resolver, ZipBinaryJarScanner scanner,
                                                          Path jar, String type) {
-        ScannedClass scanned = scanner.readClass(jar, TypeName.of(type)).orElseThrow();
+        ScannedClass scanned = scanner.scanAll(jar).stream()
+                .filter(c -> c.type().name().equals(TypeName.of(type))).findFirst().orElseThrow();
         TypeEntry entry = resolver.resolve(scanned.type().name(), List.of(scanned)).getFirst();
         return entry.memberDescriptors().stream()
                 .collect(Collectors.toMap(MemberDescriptor::erasedKey, member -> member, (a, b) -> a));

@@ -31,11 +31,6 @@ public final class JavadocJarReader {
         return packageName.isEmpty() ? PACKAGE_PAGE : packageName.replace('.', '/') + "/" + PACKAGE_PAGE;
     }
 
-    /** True if the javadoc tree has a page for the type. */
-    public boolean hasTypePage(TypeName type) {
-        return pages.hasPage(typePagePath(type));
-    }
-
     /**
      * The parsed page of a type, if the tree has one. For nested types, an {@code @since} that javadoc copied from
      * the enclosing type's description (recent javadoc versions do) is removed again, as source rendering has none.

@@ -51,8 +51,6 @@ class JavadocJarReaderTest {
                 .with("a/Outer.Other.html", typePage("Other.", "2.0"));
         JavadocJarReader reader = new JavadocJarReader(pages, new JavadocPageParser());
 
-        assertThat(reader.hasTypePage(TypeName.of("a.Outer"))).isTrue();
-        assertThat(reader.hasTypePage(TypeName.of("a.Missing"))).isFalse();
         assertThat(reader.typePage(TypeName.of("a.Missing"))).isEmpty();
         assertThat(reader.typePage(TypeName.of("a.Outer")).orElseThrow().typeDoc().blockTags())
                 .containsExactly("@since 1.0");

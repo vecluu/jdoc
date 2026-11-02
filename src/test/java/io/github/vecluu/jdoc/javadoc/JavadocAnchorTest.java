@@ -2,7 +2,6 @@ package io.github.vecluu.jdoc.javadoc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.vecluu.jdoc.javadoc.JavadocAnchor.Layout;
 import io.github.vecluu.jdoc.model.MemberDescriptor;
 import io.github.vecluu.jdoc.model.MemberKind;
 import io.github.vecluu.jdoc.model.ParameterInfo;
@@ -61,32 +60,6 @@ class JavadocAnchorTest {
         assertThat(JavadocAnchor.parse("max(T,T)-type-param-T")).isEmpty();
         assertThat(JavadocAnchor.parse("")).isEmpty();
         assertThat(JavadocAnchor.parse(null)).isEmpty();
-    }
-
-    @Test
-    void generatesAnchorsForBothLayouts() {
-        List<String> types = List.of("java.lang.String", "int[]", "java.lang.Object...");
-
-        assertThat(JavadocAnchor.generate("of", MemberKind.METHOD, types, Layout.MODERN))
-                .isEqualTo("of(java.lang.String,int[],java.lang.Object...)");
-        assertThat(JavadocAnchor.generate("of", MemberKind.METHOD, types, Layout.LEGACY))
-                .isEqualTo("of-java.lang.String-int:A-java.lang.Object:A-");
-        assertThat(JavadocAnchor.generate("Optional", MemberKind.CONSTRUCTOR, List.of(), Layout.MODERN))
-                .isEqualTo("<init>()");
-        assertThat(JavadocAnchor.generate("Optional", MemberKind.CONSTRUCTOR, List.of(), Layout.LEGACY))
-                .isEqualTo("Optional--");
-        assertThat(JavadocAnchor.generate("EMPTY", MemberKind.FIELD, List.of(), Layout.LEGACY)).isEqualTo("EMPTY");
-    }
-
-    @Test
-    void generatesFromMemberDescriptor() {
-        MemberDescriptor join = method("join", new ParameterInfo("sep", "String", "String"),
-                new ParameterInfo("parts", "Object...", "Object[]"));
-
-        assertThat(JavadocAnchor.generate(join, Layout.MODERN)).isEqualTo("join(String,Object...)");
-        assertThat(JavadocAnchor.generate(join, Layout.LEGACY)).isEqualTo("join-String-Object:A-");
-        assertThat(JavadocAnchor.parse(JavadocAnchor.generate(join, Layout.MODERN)).orElseThrow().matches(join))
-                .isTrue();
     }
 
     @Test

@@ -62,9 +62,9 @@ class JavadocJarIT {
     @Test
     void everyApiTypeExceptNonJavadocOnesHasAPage() {
         for (TypeName type : SampleLibrary.API_TYPES) {
-            assertThat(reader.hasTypePage(type)).as("page of %s", type).isTrue();
+            assertThat(reader.typePage(type)).as("page of %s", type).isPresent();
         }
-        assertThat(reader.hasTypePage(SampleLibrary.SHAPE_CACHE)).isFalse();
+        assertThat(reader.typePage(SampleLibrary.SHAPE_CACHE)).isEmpty();
     }
 
     @Test
@@ -75,7 +75,7 @@ class JavadocJarIT {
         new ZipBinaryJarScanner().scan(withoutNames.binaryJar(), c -> unnamed.put(c.type().name(), c));
         int checked = 0;
         for (ScannedClass scanned : unnamed.values()) {
-            if (!reader.hasTypePage(scanned.type().name())) {
+            if (reader.typePage(scanned.type().name()).isEmpty()) {
                 continue;
             }
             JavadocTypePage page = page(scanned.type().name());
@@ -184,7 +184,7 @@ class JavadocJarIT {
         }
         int compared = 0;
         for (ScannedClass binary : classes.values()) {
-            if (!reader.hasTypePage(binary.type().name())) {
+            if (reader.typePage(binary.type().name()).isEmpty()) {
                 continue;
             }
             JavadocTypePage page = page(binary.type().name());

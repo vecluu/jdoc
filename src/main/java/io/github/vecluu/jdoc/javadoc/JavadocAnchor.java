@@ -8,15 +8,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
- * A member anchor of a javadoc page, parsed or generated, in either layout:
+ * A member anchor parsed from a javadoc page, in either layout:
  *
  * <ul>
- *   <li>{@link Layout#MODERN} (JDK 10+): {@code of(java.lang.Object)}, {@code max(T,T)}, varargs
+ *   <li>modern (JDK 10+): {@code of(java.lang.Object)}, {@code max(T,T)}, varargs
  *       {@code max(double...)}, constructors {@code <init>(double)}, fields {@code NAME};</li>
- *   <li>{@link Layout#LEGACY} (JDK 8): {@code of-java.lang.Object-}, {@code foo--}, arrays as {@code :A}, constructors
+ *   <li>legacy (JDK 8): {@code of-java.lang.Object-}, {@code foo--}, arrays as {@code :A}, constructors
  *       by simple type name {@code Circle-double-}, fields {@code NAME}.</li>
  * </ul>
  *
@@ -27,14 +26,6 @@ public record JavadocAnchor(String name, Optional<List<String>> parameterTypes) 
 
     /** Constructor name used by modern anchors. */
     public static final String CONSTRUCTOR_NAME = "<init>";
-
-    /** Javadoc anchor layouts. */
-    public enum Layout {
-        /** JDK 10 and later: {@code name(a.B,int)}. */
-        MODERN,
-        /** JDK 8 and earlier: {@code name-a.B-int-}. */
-        LEGACY
-    }
 
     public JavadocAnchor {
         if (name == null || name.isBlank()) {
@@ -81,40 +72,6 @@ public record JavadocAnchor(String name, Optional<List<String>> parameterTypes) 
             return Optional.of(new JavadocAnchor(name, Optional.of(types)));
         }
         return isJavaIdentifier(anchor) ? Optional.of(new JavadocAnchor(anchor, Optional.empty())) : Optional.empty();
-    }
-
-    /**
-     * Generates an anchor id.
-     *
-     * @param name           member name (constructors: the simple type name)
-     * @param kind           member kind
-     * @param parameterTypes erased parameter types, fully qualified where known ({@code java.lang.String},
-     *                       {@code int[]}, varargs {@code java.lang.String...})
-     */
-    public static String generate(String name, MemberKind kind, List<String> parameterTypes, Layout layout) {
-        if (!kind.isExecutable()) {
-            return name;
-        }
-        return switch (layout) {
-            case MODERN -> (kind == MemberKind.CONSTRUCTOR ? CONSTRUCTOR_NAME : name)
-                    + parameterTypes.stream().collect(Collectors.joining(",", "(", ")"));
-            case LEGACY -> parameterTypes.isEmpty() ? name + "--" : name + "-" + parameterTypes.stream()
-                    .map(type -> type.replace("...", "[]").replace("[]", ":A"))
-                    .map(type -> type + "-")
-                    .collect(Collectors.joining());
-        };
-    }
-
-    /**
-     * Generates the anchor id of a member from its erased parameter types (simple names, as the model stores them;
-     * pages use qualified names, which {@link #matches} tolerates). Varargs parameters are written with {@code ...}
-     * in the modern layout, as javadoc does.
-     */
-    public static String generate(MemberDescriptor member, Layout layout) {
-        List<String> types = member.parameters().stream()
-                .map(p -> p.isVarargs() && layout == Layout.MODERN ? erasedVarargs(p) : p.erasedType())
-                .toList();
-        return generate(member.name(), member.kind(), types, layout);
     }
 
     /** True if this anchor names a field or enum constant (no parameter list). */
@@ -173,11 +130,6 @@ public record JavadocAnchor(String name, Optional<List<String>> parameterTypes) 
         String dims = arrayStart < 0 ? "" : text.substring(arrayStart);
         int dot = base.lastIndexOf('.');
         return (dot < 0 ? base : base.substring(dot + 1)) + dims;
-    }
-
-    private static String erasedVarargs(ParameterInfo parameter) {
-        String erased = parameter.erasedType();
-        return erased.endsWith("[]") ? erased.substring(0, erased.length() - 2) + "..." : erased;
     }
 
     private static String stripTypeArguments(String type) {

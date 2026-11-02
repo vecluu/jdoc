@@ -57,11 +57,6 @@ public final class ZipArchiveOpener implements ArchiveOpener {
             }
         }
 
-        /** The underlying zip, for listing entries. */
-        ZipFile zip() {
-            return zip;
-        }
-
         @Override
         public Optional<String> read(String entryPath) {
             ZipEntry entry = zip.getEntry(entryPath);
