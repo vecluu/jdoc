@@ -21,24 +21,21 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * Keeps the code maps honest: a renamed class, a moved file or a new package that the docs do not follow fails the
- * build, and the message names the stale entry, its file and its line.
+ * Keeps the docs honest about names: a renamed class or a moved file that the docs do not follow fails the build, and
+ * the message names the stale entry, its file and its line.
  *
  * <ul>
- *   <li><b>Packages:</b> every package directory under {@code src/main/java/io/github/vecluu/jdoc} has a row in the
- *       package table of {@code docs/ARCHITECTURE.md} (first column, backticked), and every row names an existing
- *       package.
- *   <li><b>Types:</b> every inline code span in {@code docs/ARCHITECTURE.md} and {@code docs/codemap/*.md} that reads
- *       as a type reference (grammar in {@link CodeMapReferences#typeReference}: {@code pkg.Type},
- *       {@code pkg.Type#member}, {@code Type.Nested.member(args)}, a bare UpperCamel {@code Type}) resolves to a type
- *       declared in a source file under {@code src/main/java} or {@code src/test/java} (bare names also in the
- *       fixture library sources under {@code src/test/resources}): in that package if one is given, nested types declared in the same file as the type before them, and a member name appearing as a word
- *       in that file. Names in {@link #NOT_JDOC_TYPES} (JDK and library types, placeholders used as examples) are not
- *       checked.
+ *   <li><b>Types:</b> every inline code span in {@code docs/ARCHITECTURE.md} that reads as a type reference
+ *       (grammar in {@link DocReferences#typeReference}: {@code pkg.Type}, {@code pkg.Type#member},
+ *       {@code Type.Nested.member(args)}, a bare UpperCamel {@code Type}) resolves to a type declared in a source file
+ *       under {@code src/main/java} or {@code src/test/java} (bare names also in the fixture library sources under
+ *       {@code src/test/resources}): in that package if one is given, nested types declared in the same file as the
+ *       type before them, and a member name appearing as a word in that file. Names in {@link #NOT_JDOC_TYPES} (JDK
+ *       and library types, placeholders used as examples) are not checked.
  *   <li><b>Paths:</b> every inline code span that reads as a repository-relative path (rule in
- *       {@link CodeMapReferences#pathReference}: starts with a top-level directory such as {@code docs/} or
+ *       {@link DocReferences#pathReference}: starts with a top-level directory such as {@code docs/} or
  *       {@code src/}, or is a root file such as {@code pom.xml} or {@code CLAUDE.md}), and every relative Markdown link
- *       target, exists. Checked in the files above plus {@code CLAUDE.md}, {@code docs/SPEC.md},
+ *       target, exists. Checked in that file plus {@code CLAUDE.md}, {@code docs/SPEC.md},
  *       {@code docs/RELEASING.md}, {@code docs/AGENT_GUIDE.md} and {@code docs/TASK_TEMPLATE.md}. Names in
  *       {@link #NOT_REPOSITORY_FILES} (files in the release bundle or the user's project, not in this repository)
  *       are not checked. Nothing under {@code tasks/} is checked: that directory is local and ignored by git.
@@ -47,7 +44,7 @@ import org.junit.jupiter.api.Test;
  * <p>Fast and offline: it reads only the working tree. The project root is the failsafe system property
  * {@code jdoc.projectRoot}, else the working directory.
  */
-class CodeMapIT {
+class DocReferencesIT {
 
     /** JDK and library types and placeholder names the docs use in examples; never resolved against the sources. */
     static final Set<String> NOT_JDOC_TYPES = Set.of(
@@ -63,8 +60,7 @@ class CodeMapIT {
     /** Root-level Markdown names that are not files of this repository (bundle or user-project files). */
     static final Set<String> NOT_REPOSITORY_FILES = Set.of("SKILL.md", "AGENTS.md", "AGENTS-snippet.md");
 
-    /** Docs whose type references are checked. Paths are checked in these plus {@link #PATH_ONLY_DOCS}. */
-    private static final String CODE_MAP_DIRECTORY = "docs/codemap";
+    /** The doc whose type references are checked. Paths are checked in it plus {@link #PATH_ONLY_DOCS}. */
     private static final String ARCHITECTURE = "docs/ARCHITECTURE.md";
     private static final List<String> PATH_ONLY_DOCS =
             List.of("CLAUDE.md", "docs/SPEC.md", "docs/RELEASING.md", "docs/AGENT_GUIDE.md", "docs/TASK_TEMPLATE.md");
@@ -76,7 +72,6 @@ class CodeMapIT {
     private static final String FIXTURE_PACKAGE = "(fixture)";
     private static final Pattern DECLARATION =
             Pattern.compile("\\b(?:class|interface|enum|record)\\s+([A-Z]\\w*)");
-    private static final Pattern PACKAGE_ROW = Pattern.compile("^\\|\\s*`([a-z]+)`\\s*\\|");
 
     private static Path root;
     private static List<SourceFile> sources;
@@ -120,43 +115,11 @@ class CodeMapIT {
     }
 
     @Test
-    void everyPackageHasARowInTheArchitecturePackageTable() {
-        List<String> rows = new ArrayList<>();
-        String[] lines = read(ARCHITECTURE).split("\n", -1);
-        boolean inSection = false;
-        for (String line : lines) {
-            if (line.startsWith("## ")) {
-                inSection = line.equals("## Packages");
-            }
-            Matcher row = PACKAGE_ROW.matcher(line);
-            if (inSection && row.find()) {
-                rows.add(row.group(1));
-            }
-        }
-        Set<String> mainPackages = new TreeSet<>();
-        try (Stream<Path> directories = Files.list(root.resolve("src/main/java").resolve(BASE_PATH))) {
-            directories.filter(Files::isDirectory).forEach(p -> mainPackages.add(p.getFileName().toString()));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        List<String> problems = new ArrayList<>();
-        mainPackages.stream()
-                .filter(p -> !rows.contains(p))
-                .forEach(p -> problems.add(ARCHITECTURE + ": package `" + p
-                        + "` (src/main/java/" + BASE_PATH + "/" + p + ") has no row in the \"Packages\" table"));
-        rows.stream()
-                .filter(p -> !mainPackages.contains(p))
-                .forEach(p -> problems.add(ARCHITECTURE + ": the \"Packages\" table lists `" + p
-                        + "`, but src/main/java/" + BASE_PATH + "/" + p + " does not exist"));
-        assertThat(problems).as(report(problems)).isEmpty();
-    }
-
-    @Test
-    void everyTypeNamedInTheCodeMapsExists() {
+    void everyTypeNamedInTheDocsExists() {
         List<String> problems = new ArrayList<>();
         for (String doc : typeDocs()) {
-            for (CodeMapReferences.Span span : CodeMapReferences.codeSpans(read(doc))) {
-                CodeMapReferences.typeReference(span.text(), packages)
+            for (DocReferences.Span span : DocReferences.codeSpans(read(doc))) {
+                DocReferences.typeReference(span.text(), packages)
                         .flatMap(reference -> unresolved(reference))
                         .ifPresent(why -> problems.add(
                                 doc + ":" + span.line() + ": `" + span.text() + "` does not resolve: " + why));
@@ -172,8 +135,8 @@ class CodeMapIT {
         List<String> problems = new ArrayList<>();
         for (String doc : docs) {
             String text = read(doc);
-            for (CodeMapReferences.Span span : CodeMapReferences.codeSpans(text)) {
-                CodeMapReferences.pathReference(span.text())
+            for (DocReferences.Span span : DocReferences.codeSpans(text)) {
+                DocReferences.pathReference(span.text())
                         .filter(path -> !NOT_REPOSITORY_FILES.contains(path))
                         .filter(path -> !Files.exists(root.resolve(path)))
                         .ifPresent(path -> problems.add(
@@ -181,7 +144,7 @@ class CodeMapIT {
                                         + ", which does not exist in the repository"));
             }
             Path directory = root.resolve(doc).getParent();
-            for (CodeMapReferences.Span link : CodeMapReferences.linkTargets(text)) {
+            for (DocReferences.Span link : DocReferences.linkTargets(text)) {
                 if (!Files.exists(directory.resolve(link.text()))) {
                     problems.add(doc + ":" + link.line() + ": link target " + link.text()
                             + " does not exist (relative to " + root.relativize(directory) + "/)");
@@ -192,7 +155,7 @@ class CodeMapIT {
     }
 
     /** Why the reference does not resolve, or empty if it does. */
-    private static Optional<String> unresolved(CodeMapReferences.TypeRef reference) {
+    private static Optional<String> unresolved(DocReferences.TypeRef reference) {
         String first = reference.types().getFirst();
         if (NOT_JDOC_TYPES.contains(first)) {
             return Optional.empty();
@@ -236,17 +199,7 @@ class CodeMapIT {
     }
 
     private static List<String> typeDocs() {
-        List<String> docs = new ArrayList<>();
-        docs.add(ARCHITECTURE);
-        try (Stream<Path> maps = Files.list(root.resolve(CODE_MAP_DIRECTORY))) {
-            maps.filter(p -> p.toString().endsWith(".md"))
-                    .map(p -> root.relativize(p).toString())
-                    .sorted()
-                    .forEach(docs::add);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return docs;
+        return List.of(ARCHITECTURE);
     }
 
     private static String read(String doc) {
@@ -269,7 +222,7 @@ class CodeMapIT {
     }
 
     private static String report(List<String> problems) {
-        return problems.size() + " stale doc reference(s); fix the doc (or the allow-list in CodeMapIT):\n  "
+        return problems.size() + " stale doc reference(s); fix the doc (or the allow-list in DocReferencesIT):\n  "
                 + String.join("\n  ", problems);
     }
 }

@@ -10,7 +10,7 @@ Issue: #N
 <!-- Briefs in the same wave must own disjoint files. Name shared hot spots (schema version, pom.xml) explicitly. -->
 **Depends on:** <Txx, Tyy> (read notes `tasks/notes/Txx.md`, ...).
 **Runs in parallel with:** <Tzz, or "alone"> <!-- and what this brief must not touch because of it -->
-**Read first:** `docs/ARCHITECTURE.md`, `docs/codemap/<area>.md`, `docs/SPEC.md` "<section>".
+**Read first:** `docs/ARCHITECTURE.md`, the `package-info.java` of the packages it touches, `docs/SPEC.md` "<section>".
 
 ## Why
 
@@ -46,7 +46,7 @@ Out of scope: <tempting neighbouring changes that belong to another task>.
 - `./mvnw -B verify -Djdoc.buildDir=target/Txx` passes with no new skipped tests.
 - <the observable check, e.g. before/after output of one command, a measurement, a CI run on a draft PR>.
 - Notes in `tasks/notes/Txx.md` (see `docs/AGENT_GUIDE.md`, "When you finish"), with a proposed commit split.
-- <docs that must change: docs/SPEC.md, docs/ARCHITECTURE.md or an area map, README, licence notices>.
+- <docs that must change: docs/SPEC.md, docs/ARCHITECTURE.md or a package-info.java, README, licence notices>.
 
 ## Rules
 

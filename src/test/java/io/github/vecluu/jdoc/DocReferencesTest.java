@@ -2,14 +2,14 @@ package io.github.vecluu.jdoc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.vecluu.jdoc.CodeMapReferences.Span;
-import io.github.vecluu.jdoc.CodeMapReferences.TypeRef;
+import io.github.vecluu.jdoc.DocReferences.Span;
+import io.github.vecluu.jdoc.DocReferences.TypeRef;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-class CodeMapReferencesTest {
+class DocReferencesTest {
 
     private static final Set<String> PACKAGES = Set.of("model", "index", "cli", "testsupport");
 
@@ -24,7 +24,7 @@ class CodeMapReferencesTest {
                 After `pom.xml`.
                 """;
 
-        assertThat(CodeMapReferences.codeSpans(markdown))
+        assertThat(DocReferences.codeSpans(markdown))
                 .containsExactly(new Span(1, "model.Gav"), new Span(1, "a b"), new Span(6, "pom.xml"));
     }
 
@@ -32,7 +32,7 @@ class CodeMapReferencesTest {
     void linkTargetsDropAnchorsAndUrls() {
         String markdown = "See [arch](../ARCHITECTURE.md#rules), [web](https://example.com) and [here](#top).";
 
-        assertThat(CodeMapReferences.linkTargets(markdown)).containsExactly(new Span(1, "../ARCHITECTURE.md"));
+        assertThat(DocReferences.linkTargets(markdown)).containsExactly(new Span(1, "../ARCHITECTURE.md"));
     }
 
     @Test
@@ -70,29 +70,29 @@ class CodeMapReferencesTest {
 
     @Test
     void pathsStartAtARootDirectoryOrNameARootFile() {
-        assertThat(CodeMapReferences.pathReference("docs/SPEC.md")).contains("docs/SPEC.md");
-        assertThat(CodeMapReferences.pathReference("dist/skill/")).contains("dist/skill");
-        assertThat(CodeMapReferences.pathReference("scripts/assemble.sh <version>")).contains("scripts/assemble.sh");
-        assertThat(CodeMapReferences.pathReference("./mvnw -B verify")).contains("mvnw");
-        assertThat(CodeMapReferences.pathReference("pom.xml")).contains("pom.xml");
-        assertThat(CodeMapReferences.pathReference("CLAUDE.md")).contains("CLAUDE.md");
+        assertThat(DocReferences.pathReference("docs/SPEC.md")).contains("docs/SPEC.md");
+        assertThat(DocReferences.pathReference("dist/skill/")).contains("dist/skill");
+        assertThat(DocReferences.pathReference("scripts/assemble.sh <version>")).contains("scripts/assemble.sh");
+        assertThat(DocReferences.pathReference("./mvnw -B verify")).contains("mvnw");
+        assertThat(DocReferences.pathReference("pom.xml")).contains("pom.xml");
+        assertThat(DocReferences.pathReference("CLAUDE.md")).contains("CLAUDE.md");
     }
 
     @Test
     void patternsAndNonRepositoryPathsAreIgnored() {
-        assertThat(CodeMapReferences.pathReference("src/test/java/io/github/vecluu/jdoc/<package>/")).isEmpty();
-        assertThat(CodeMapReferences.pathReference("scripts/*.sh")).isEmpty();
-        assertThat(CodeMapReferences.pathReference("src/test/java/.../testsupport")).isEmpty();
-        assertThat(CodeMapReferences.pathReference("lib/jdoc.aot")).isEmpty();
-        assertThat(CodeMapReferences.pathReference("target/jdoc.jar")).isEmpty();
-        assertThat(CodeMapReferences.pathReference("~/.cache/jdoc")).isEmpty();
-        assertThat(CodeMapReferences.pathReference("deps.txt")).isEmpty();
-        assertThat(CodeMapReferences.pathReference("tasks")).isEmpty();
-        assertThat(CodeMapReferences.pathReference("tasks/README.md")).isEmpty();
+        assertThat(DocReferences.pathReference("src/test/java/io/github/vecluu/jdoc/<package>/")).isEmpty();
+        assertThat(DocReferences.pathReference("scripts/*.sh")).isEmpty();
+        assertThat(DocReferences.pathReference("src/test/java/.../testsupport")).isEmpty();
+        assertThat(DocReferences.pathReference("lib/jdoc.aot")).isEmpty();
+        assertThat(DocReferences.pathReference("target/jdoc.jar")).isEmpty();
+        assertThat(DocReferences.pathReference("~/.cache/jdoc")).isEmpty();
+        assertThat(DocReferences.pathReference("deps.txt")).isEmpty();
+        assertThat(DocReferences.pathReference("tasks")).isEmpty();
+        assertThat(DocReferences.pathReference("tasks/README.md")).isEmpty();
     }
 
     private static Optional<TypeRef> type(String span) {
-        return CodeMapReferences.typeReference(span, PACKAGES);
+        return DocReferences.typeReference(span, PACKAGES);
     }
 
     private static TypeRef ref(String packageName, List<String> types, String member) {

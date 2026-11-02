@@ -8,10 +8,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Pure parsing for {@link CodeMapIT}: finds the inline code spans of a Markdown file and decides which of them name a
- * Java type or a repository file. The rules are documented on {@link #typeReference} and {@link #pathReference}.
+ * Pure parsing for {@link DocReferencesIT}: finds the inline code spans of a Markdown file and decides which of them
+ * name a Java type or a repository file. The rules are documented on {@link #typeReference} and
+ * {@link #pathReference}.
  */
-final class CodeMapReferences {
+final class DocReferences {
 
     /** The base package; a span may start with it and is then read without it. */
     static final String BASE_PACKAGE = "io.github.vecluu.jdoc.";
@@ -40,7 +41,7 @@ final class CodeMapReferences {
     private static final Pattern PATH_CHARACTERS = Pattern.compile("[\\w./-]+");
     private static final Pattern UPPER_CASE_MARKDOWN = Pattern.compile("[A-Z][A-Z0-9_-]*\\.md");
 
-    private CodeMapReferences() {}
+    private DocReferences() {}
 
     /** An inline code span (whitespace runs collapsed to one space) and the 1-based line where it starts. */
     record Span(int line, String text) {}

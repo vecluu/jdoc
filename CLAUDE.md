@@ -8,13 +8,18 @@ dependencies a module uses. User-facing docs: `README.md`.
 | Question | Read |
 | --- | --- |
 | What jdoc does, why, what it does not do (known limitations) | `docs/SPEC.md` |
-| How the code is built: packages, binding rules, test rules, flows | `docs/ARCHITECTURE.md`, then `docs/codemap/<area>.md` for your area |
+| How the code is built: binding rules, test rules, the cross-package paths | `docs/ARCHITECTURE.md`; per package, its `package-info.java` |
 | Rules for an implementing agent | `docs/AGENT_GUIDE.md`; brief shape `docs/TASK_TEMPLATE.md` |
-| Backlog: bugs, features, tasks | GitHub issues (labels `area:<area>`, one per area map) |
+| Backlog: bugs, features, tasks | GitHub issues, labelled `area:<area>` (areas below) |
 | Cutting a release | `docs/RELEASING.md` |
 | Why a past decision was made (startup, skill trigger, licences) | `docs/decisions/` |
 
 Only read what your task needs. Where a doc disagrees with the code, the code wins; fix the doc.
+
+Areas (issue labels) are package groups: `foundation` = `model`, `error`, `config`, `query`, `text`;
+`resolution-index` = `module`, `index`; `indexing` = `javadoc`, `source`, `bytecode`, `decompile`, `indexer`;
+`lookup-cli` = `lookup`, `app`, `cli`; `build-delivery` = build, launcher, installer, scripts, AOT training, CI,
+release.
 
 ## Build and test
 
@@ -51,8 +56,9 @@ and the wave board; it is local and ignored by git, so the public trace of a tas
 ## Keep these current
 
 - `docs/SPEC.md` when behaviour, commands, output, options or limitations change.
-- `docs/ARCHITECTURE.md` and `docs/codemap/*.md` when packages or key classes are added, renamed or moved
-  (`CodeMapIT` checks names and paths).
+- A package's `package-info.java` when its purpose or package-wide rules change; `docs/ARCHITECTURE.md` when a rule,
+  the request path or a dependency changes (`DocReferencesIT` checks names and paths, `PackageDependencyTest` the
+  layering).
 - `THIRD-PARTY-NOTICES` and `NOTICE` when a bundled dependency changes (`LicenseNoticesIT` checks them).
 - `README.md` when commands, options, install steps or requirements change.
 - Not `CHANGELOG.md`: it is compiled when a release is cut (`docs/RELEASING.md`).
