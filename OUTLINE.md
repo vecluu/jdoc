@@ -259,7 +259,7 @@ jdoc/
   scripts/assemble.sh           builds the tarball
   scripts/smoke-test.sh         offline end-to-end check
   scripts/install-test.sh       installs the assembled tarball into temp dirs and checks it
-  scripts/bench-startup.sh      startup benchmark (median per command)
+  scripts/bench-startup.sh      startup benchmark (median per command, incl. first call after adding a dependency)
   .github/workflows/build.yml
 ```
 
@@ -400,7 +400,7 @@ echo "smoke test passed"
 
 `dist/install.sh`, run inside the airgap:
 
-> Implemented by T17: installs into `<prefix>/lib/` (`jdoc.jar`, the extracted sqlite native library, `jdoc.aot` cache of ~36 MB and `jdoc.aot.key`), trains the AOT cache in two steps (~8.5 s) against a throwaway module with a fake `mvn` and a temp cache (training is triggered by the hidden system property `-Djdoc.aotTraining`, not a CLI command), and only warns if training fails.
+> Implemented by T17: installs into `<prefix>/lib/` (`jdoc.jar`, the extracted sqlite native library, `jdoc.aot` cache of ~44 MB and `jdoc.aot.key`), trains the AOT cache in two steps (~8.4 s) against throwaway modules with a fake `mvn` and a temp cache: JDK lookups plus a tiny library generated at install time with javac/javadoc in three flavours (sources jar, javadoc jar only, binary only), so indexing a new dependency and decompiling are trained too (T23) (training is triggered by the hidden system property `-Djdoc.aotTraining`, not a CLI command), and only warns if training fails.
 
 ```bash
 #!/usr/bin/env bash
