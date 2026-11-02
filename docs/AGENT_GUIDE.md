@@ -2,8 +2,8 @@
 
 You implement one task brief of jdoc. `CLAUDE.md` (build, test and commit rules) is already loaded. Read, in order:
 
-1. Your brief, `tasks/Txx-<slug>.md` (a local working file: `tasks/` is ignored by git; the brief's `Issue: #N` line
-   names its GitHub issue).
+1. Your brief, `tasks/<N>-<slug>.md` (a local working file: `tasks/` is ignored by git). `<N>` is the number of the
+   GitHub issue the task works on and the task's only ID.
 2. `docs/ARCHITECTURE.md` (binding rules, test rules, the cross-package paths), then the `package-info.java` of each
    package you touch.
 3. The `docs/SPEC.md` sections your brief names, when you change behaviour.
@@ -16,10 +16,10 @@ Read the source of existing classes when you need detail; do not re-implement wh
   make the smallest possible change and list it under "Changes outside my files" in your notes. `pom.xml`, `dist/`,
   `scripts/` and the workflow only when your brief owns them; never add a dependency without the orchestrator.
 - **Other agents work in the same tree at the same time.** Build into your own directory:
-  `./mvnw -B -q -Djdoc.buildDir=target/<TASK-ID> test` (add `-Dtest='YourTest*'`) and `... verify` before you finish.
+  `./mvnw -B -q -Djdoc.buildDir=target/<N> test` (add `-Dtest='YourTest*'`) and `... verify` before you finish.
   If compilation fails in another task's half-written package, wait and retry; never fix their code.
 - **Skip the slow ITs while iterating** (`@Tag("slow")`: real JDK, real Maven, installs and JVMs):
-  `./mvnw -B -q -Djdoc.buildDir=target/<TASK-ID> verify -DexcludedGroups=slow`. Run the full `verify` before you
+  `./mvnw -B -q -Djdoc.buildDir=target/<N> verify -DexcludedGroups=slow`. Run the full `verify` before you
   finish.
 - Keep the code compiling; write files completely rather than in broken intermediate states.
 - Do not commit, push, tag or branch (unless your brief allows a throwaway CI branch). Do not delete files you did
@@ -35,8 +35,8 @@ Read the source of existing classes when you need detail; do not re-implement wh
 
 ## When you finish
 
-1. `./mvnw -B -q -Djdoc.buildDir=target/<TASK-ID> verify` passes with no new skipped tests (report honestly if not).
-2. Write `tasks/notes/<TASK-ID>.md` (local, under ~80 lines): what you built (one line per public class), decisions and
+1. `./mvnw -B -q -Djdoc.buildDir=target/<N> verify` passes with no new skipped tests (report honestly if not).
+2. Write `tasks/notes/<N>.md` (local, under ~80 lines): what you built (one line per public class), decisions and
    deviations, changes outside your files, doc impact (SPEC, ARCHITECTURE, README sections to change and why),
    known gaps, a test summary, and a proposed commit split
    (`<gitmoji> <type>(<scope>): <subject>` plus paths; the orchestrator adds `Refs #N` or `Closes #N`).
