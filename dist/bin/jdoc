@@ -34,7 +34,7 @@ fi
 
 aot=
 if [ -f "$lib/jdoc.aot" ] && [ -r "$lib/jdoc.aot.key" ]; then
-  aot_flags= aot_home= aot_stat=
+  aot_flags='' aot_home='' aot_stat=''
   # shellcheck source=/dev/null
   . "$lib/jdoc.aot.key"
   if [ "$aot_flags" = "$jvm_flags" ] && [ -n "$aot_stat" ] &&
@@ -52,7 +52,7 @@ else
   case $cds in
     '') cds=${HOME:+$HOME/.cache/jdoc} ;;
     '~') cds=${HOME:-} ;;
-    '~/'*) cds=${HOME:+$HOME/${cds#'~/'}} ;;
+    \~/*) cds=${HOME:+$HOME/${cds#'~/'}} ;;
   esac
   if [ -n "$cds" ] && { [ -d "$cds/cds" ] || mkdir -p "$cds/cds" 2>/dev/null; } && [ -w "$cds/cds" ]; then
     jsa=$cds/cds/jdoc.jsa

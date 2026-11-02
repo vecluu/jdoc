@@ -65,8 +65,9 @@ while [ $# -gt 0 ]; do
 done
 
 here=$(cd "$(dirname "$0")" && pwd)
-[ -f "$here/lib/jdoc.jar" ] && [ -f "$here/bin/jdoc" ] \
-  || die "lib/jdoc.jar or bin/jdoc missing next to install.sh; run it from the extracted release bundle"
+if [ ! -f "$here/lib/jdoc.jar" ] || [ ! -f "$here/bin/jdoc" ]; then
+  die "lib/jdoc.jar or bin/jdoc missing next to install.sh; run it from the extracted release bundle"
+fi
 
 java=$(command -v java) || die "jdoc needs Java 25 on PATH"
 java_version=$("$java" -version 2>&1) || true

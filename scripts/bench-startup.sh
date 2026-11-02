@@ -47,6 +47,7 @@ source java.util.Optional#orElseThrow'
 commands=${BENCH_COMMANDS:-$default_commands}
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/jdoc-bench.XXXXXX")
+# shellcheck disable=SC2317 # called by the EXIT trap
 cleanup() {
   if [ "${BENCH_KEEP:-0}" = 1 ]; then
     echo "kept: $work" >&2
@@ -87,8 +88,8 @@ now_us() {
   fi
 }
 
-# shellcheck disable=SC2086 # jvm_flags is a list of words on purpose
 cd "$work/module"
+# shellcheck disable=SC2086 # jvm_flags is a list of words on purpose
 jdoc() { "$java" $jvm_flags -jar "$jar" "$@"; }
 
 if ! jdoc index > "$work/index.out" 2> "$work/index.err"; then
