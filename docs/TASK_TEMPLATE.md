@@ -20,6 +20,8 @@ Issue: #N
 ## Goal
 
 <The outcome in one to three sentences, observable from outside (output, exit code, timing, file).>
+<!-- The Goal is the task's boundary; Scope lists the known changes, not the limit. State a clean-up as an end state
+     ("no public member in packages X, Y that main code does not use"), not as a list of what was found. -->
 
 ## Scope
 

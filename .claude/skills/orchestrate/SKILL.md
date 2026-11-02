@@ -34,9 +34,10 @@ Treat any arguments as the session's goal.
 5. **Review.** When an implementing agent finishes, start a fresh reviewer (prompt below), one per implementing agent;
    one reviewer may take a whole wave of small changes. Meanwhile read the agent's reply and `tasks/notes/<N>.md`,
    look at the diff and run a clean `./mvnw -B verify` yourself. Confirm each finding before acting on it, then route
-   it: a must fix in the brief's owned files goes back to the implementing agent (resume it); a shared-doc gap is
-   yours, in the commit; anything outside the brief joins the notes' "Known gaps". Skip the review only for changes you
-   made yourself without an agent.
+   it. The brief's Goal, not its Scope list, is the boundary: a finding in the brief's owned files that serves the
+   Goal (code the change left dead or stale, more of what the Goal removes or fixes) goes back to the implementing
+   agent (resume it), even if Scope did not list it; a shared-doc gap is yours, in the commit; only work toward another
+   goal joins the notes' "Known gaps". Skip the review only for changes you made yourself without an agent.
 6. **Verify.** After any fix, run a clean `./mvnw -B verify` again; if the fix was large, review it again. If verify is
    red, send the agent back (resume it) rather than fixing large things yourself.
 7. **Commit.** Follow the notes' proposed split, adjusted as needed. Agents sometimes stage files: run
@@ -61,14 +62,15 @@ Treat any arguments as the session's goal.
   `tasks/notes/<N>.md`, and `git diff` / `git status --short` limited to the brief's owned files plus the notes'
   'Changes outside my files' (other agents may still be working in the tree). Read-only: no edits, no commits, no
   GitHub writes, no full `./mvnw verify` (the orchestrator runs it); `bash -n`, shellcheck, grep and other read-only
-  commands are fine. Check, in order: (1) the brief: every Scope and 'Done when' item done, nothing out of scope,
+  commands are fine. Check, in order: (1) the brief: every Scope and 'Done when' item done, nothing outside the Goal,
   binding decisions held, each recorded deviation justified or scope creep; (2) the work: correctness bugs, tests that
   do not prove what they claim, leftover duplication, stale docs and comments (grep for old names and values), 'Doc
   impact' complete and correct; (3) the rules in `CLAUDE.md`, `docs/AGENT_GUIDE.md`, `docs/ARCHITECTURE.md` and the
   touched `package-info.java`, citing the rule. Report only findings you confirmed by reading the code or running a
   command, and nothing the build or tests already enforce. Answer in at most 40 lines: findings ranked must fix /
-  should fix / nit (at most 5 nits), each with file:line, the brief item or rule, and a one-line consequence. End with
-  a one-line verdict: ready to commit, or not."
+  should fix / nit (at most 5 nits), each with file:line, the brief item or rule, a one-line consequence, and 'in goal'
+  (serves the brief's Goal in its owned files, even if Scope did not list it) or 'other goal'. End with a one-line
+  verdict: ready to commit, or not."
 - **Messages to a running agent** (another agent's result, a wording to align with) are coordination, not new terms.
   A new binding decision goes into the brief first, then the message points at it.
 - **Research agent:** the question, the sources to use (files, docs, URLs), where the task ends, and the answer's

@@ -25,7 +25,9 @@ Read the source of existing classes when you need detail; do not re-implement wh
 - Do not commit, push, tag or branch (unless your brief allows a throwaway CI branch). Do not delete files you did
   not create. Do not edit `CHANGELOG.md`; it is written at release time.
 - Never write to GitHub: no issues, labels, comments or PR edits. Put follow-ups you find under "Known gaps" in your
-  notes; the orchestrator files them as issues after the maintainer approves.
+  notes; the orchestrator files them as issues after the maintainer approves. What your own change leaves dead or
+  stale, or what the brief's Goal covers but its Scope missed, is not a gap: fix it in your owned files, or flag it in
+  your notes as part of this task.
 - No task or issue numbers in code or committed docs ("T08's resolver", "#12"); describe the thing itself. Links to
   external bug reports are fine.
 - Update the `package-info.java`, Javadoc and comments of the packages you touch (`JavadocPresenceTest`). Change
