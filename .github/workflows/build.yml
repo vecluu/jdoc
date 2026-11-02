@@ -2,13 +2,20 @@ name: build
 
 # Every pull request and push to main builds and tests jdoc, assembles the release bundle, installs it into temporary
 # directories and smoke-tests the installed launcher offline. A v* tag also publishes a GitHub release with the
-# tarball, SHA256SUMS and signed build provenance.
+# tarball, SHA256SUMS, signed build provenance and the version's CHANGELOG.md section as notes. A manual run with a
+# version (gh workflow run build.yml --ref <branch> -f release-dry-run=0.1.0) builds that version and runs the
+# release job up to, but not including, the attestation and the release: it publishes nothing.
 on:
   pull_request:
   push:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      release-dry-run:
+        description: 'Release dry run: build this version (e.g. 0.1.0) and stage its release without publishing'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -21,6 +28,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,13 +51,26 @@ jobs:
           java -version
           mvn -v | head -1
 
-      - name: Version from tag, else snapshot
+      # SOURCE_DATE_EPOCH (the commit time) fixes the jar entry timestamps (pom profile source-date-epoch) and the
+      # tarball's (assemble.sh), so the same commit and version always give the same jar and tarball.
+      - name: Version from tag or dry-run input, else snapshot
+        id: version
+        env:
+          DRY_RUN_VERSION: ${{ inputs.release-dry-run }}
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+            version=${GITHUB_REF_NAME#v}
+          elif [[ -n "$DRY_RUN_VERSION" ]]; then
+            version=$DRY_RUN_VERSION
           else
-            echo "VERSION=0.0.0-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+            version=0.0.0-${GITHUB_SHA::7}
           fi
+          if [[ "$GITHUB_REF" == refs/tags/v* || -n "$DRY_RUN_VERSION" ]]; then
+            scripts/release-notes.sh "$version" > /dev/null # fail before the build if CHANGELOG.md lacks the section
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       # CI=true (set by Actions) makes a missing test prerequisite fail instead of skip: InstallerIT runs shellcheck
       # on dist/install.sh, dist/bin/jdoc and scripts/*.sh, RealMavenResolutionIT runs the Maven of this build offline.
@@ -70,7 +92,9 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # v* tags publish. A manual run with release-dry-run runs the same steps, but skips the attestation and the
+    # release (both public); the token's write permissions stay unused then.
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release-dry-run != '')
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -79,21 +103,46 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') }}
     steps:
+      # only for scripts/release-notes.sh and CHANGELOG.md; the release files come from the build job
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
+          pattern: jdoc-*
           path: out
           merge-multiple: true
 
-      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: out/jdoc-*.tar.gz
+      - name: Check the release files and write the notes
+        run: |
+          ls -l out
+          expected=$(printf '%s\n' SHA256SUMS "jdoc-$VERSION.tar.gz")
+          actual=$(ls out | LC_ALL=C sort)
+          [[ "$actual" == "$expected" ]] || { echo "unexpected release files: $actual" >&2; exit 1; }
+          (cd out && sha256sum -c SHA256SUMS)
+          scripts/release-notes.sh "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+          cat "$RUNNER_TEMP/release-notes.md"
 
-      - name: Publish release
+      - if: env.PUBLISH == 'true'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: out/jdoc-${{ env.VERSION }}.tar.gz
+
+      - name: Publish release (dry run prints the command)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          prerelease=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" out/* --verify-tag --generate-notes "${prerelease[@]}" \
-            -R "$GITHUB_REPOSITORY"
+          args=("v$VERSION" "out/jdoc-$VERSION.tar.gz" out/SHA256SUMS --verify-tag --title "jdoc $VERSION"
+            --notes-file "$RUNNER_TEMP/release-notes.md" -R "$GITHUB_REPOSITORY")
+          if [[ "$VERSION" == *-* ]]; then args+=(--prerelease); fi
+          if [[ "$PUBLISH" == true ]]; then
+            [[ "$GITHUB_REF_NAME" == "v$VERSION" ]] || { echo "tag $GITHUB_REF_NAME does not match $VERSION" >&2; exit 1; }
+            gh release create "${args[@]}"
+          else
+            echo "dry run, not publishing: gh release create ${args[*]}"
+          fi

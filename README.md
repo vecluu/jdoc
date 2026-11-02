@@ -91,11 +91,13 @@ answer came from: `[from javadoc jar]`, or `[decompiled, no docs]` when only sig
 
 ## Install
 
-Releases are on the [releases page](https://github.com/vecluu/jdoc/releases). Each release has
-`jdoc-<version>.tar.gz`, a `SHA256SUMS` file and signed build provenance.
+Releases are on the [releases page](https://github.com/vecluu/jdoc/releases); the latest is `0.1.0`, and
+[`CHANGELOG.md`](CHANGELOG.md) lists what each one contains. Each release has `jdoc-<version>.tar.gz`, a
+`SHA256SUMS` file and signed build provenance.
 
 ```sh
 # online: download both files, then check that GitHub Actions built the tarball from this repository
+gh release download v<version> -R vecluu/jdoc     # or download them from the releases page
 gh attestation verify jdoc-<version>.tar.gz -R vecluu/jdoc
 
 # copy both files to the target machine (this can be an airgapped one), then:
@@ -225,6 +227,7 @@ java -jar target/jdoc.jar --help
 Release steps, as CI runs them:
 
 ```sh
+export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)            # commit time: timestamps in the jar and the tarball
 ./mvnw -B -Drevision=0.1.0 verify                              # the version printed by `jdoc --version`
 scripts/smoke-test.sh target/jdoc.jar it/sample-project         # offline end-to-end check (see below)
 scripts/assemble.sh 0.1.0                                       # out/jdoc-0.1.0.tar.gz and out/SHA256SUMS
@@ -232,13 +235,18 @@ scripts/install-test.sh out/jdoc-0.1.0.tar.gz it/sample-project # installs into 
 scripts/bench-startup.sh target/jdoc.jar                        # startup medians per command
 ```
 
+The build is reproducible: the same commit, version and `SOURCE_DATE_EPOCH` give a byte-identical `jdoc.jar`
+and tarball (on the same JDK build). Without `SOURCE_DATE_EPOCH`, the jar gets a fixed timestamp from `pom.xml`.
+
 The smoke test and the install test need `mvn` on `PATH` (or `JDOC_MVN`) and network access once. They download
 the sample project's dependencies into a temporary local repository, then run every command offline with a
 temporary `JDOC_CACHE`. They never touch `~/.m2` or `~/.cache/jdoc`.
 
 CI ([`.github/workflows/build.yml`](.github/workflows/build.yml)) runs on every pull request and every push to
 `main`. It runs shellcheck, `verify`, the bundle assembly and the install test, with the launcher also run under
-`dash`. A `v*` tag publishes a GitHub release with the tarball, `SHA256SUMS` and build provenance.
+`dash`. A `v*` tag publishes a GitHub release with the tarball, `SHA256SUMS`, build provenance and the version's
+`CHANGELOG.md` section as release notes. `gh workflow run build.yml --ref <branch> -f release-dry-run=<version>`
+runs the same build and release job but publishes nothing.
 
 ## Contributing
 
