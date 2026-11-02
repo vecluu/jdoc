@@ -258,6 +258,8 @@ jdoc/
   dist/AGENTS-snippet.md
   scripts/assemble.sh           builds the tarball
   scripts/smoke-test.sh         offline end-to-end check
+  scripts/install-test.sh       installs the assembled tarball into temp dirs and checks it
+  scripts/bench-startup.sh      startup benchmark (median per command)
   .github/workflows/build.yml
 ```
 
@@ -266,6 +268,9 @@ Release bundle, plus `SHA256SUMS` beside it:
 ```
 jdoc-1.2.0/
   VERSION
+  LICENSE
+  NOTICE
+  THIRD-PARTY-NOTICES
   install.sh
   AGENTS-snippet.md
   bin/jdoc
@@ -274,6 +279,8 @@ jdoc-1.2.0/
 ```
 
 `.github/workflows/build.yml`:
+
+> Implemented by T18 in `.github/workflows/build.yml`; the draft below is historical. The real workflow builds with `./mvnw`, pins actions to commit SHAs, runs shellcheck on all scripts, runs the install test from the assembled tarball (launcher also exercised under `dash`) and the smoke test through the installed launcher. The installer copies `LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES` to `<prefix>/share/doc/jdoc/`.
 
 ```yaml
 name: build
@@ -369,7 +376,7 @@ rm -rf "$stage"
 (cd out && sha256sum "$name.tar.gz" > SHA256SUMS)
 ```
 
-`scripts/smoke-test.sh` fetches the sample project's dependencies and sources once, then runs jdoc the way the airgap will. It needs one small addition to the CLI: a `JDOC_CACHE` environment variable that overrides `~/.cache/jdoc`.
+`scripts/smoke-test.sh` fetches the sample project's dependencies and sources once into a private temporary Maven repository (never `~/.m2`), then runs jdoc offline the way the airgap will, through the installed launcher: every command, `--help`, `--version`, `--page`, `--from`, all three doc-source headers and exit codes 0–3. It needs one small addition to the CLI: a `JDOC_CACHE` environment variable that overrides `~/.cache/jdoc`.
 
 ```bash
 #!/usr/bin/env bash
