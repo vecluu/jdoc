@@ -124,9 +124,17 @@ One line, as the agent would write the declaration, without `public` and without
 - constructors: `[protected ]Optional(T value)`
 - fields: `[protected ][static ][final ]Type NAME`
 - enum constants: `NAME`
+- No implicit interface modifiers (T22): interface and annotation methods never show `abstract` (also when written),
+  interface and annotation fields never show `static final` (`MemberDescriptor.isStatic` stays true); `default` and
+  `static` interface methods keep their keyword, abstract class methods keep `abstract`. Source and bytecode
+  rendering are identical (`SampleLibraryBytecodeIT`).
 - Types use simple names as written in source (`List<String>`, `Map.Entry<K,V>`), varargs as `String...`.
 - From bytecode (no source): same format, simple names derived from descriptors/generic signatures,
   parameter names from the MethodParameters attribute, else `arg0`, `arg1`, ...
+- JAVADOC types (bytecode + javadoc page, T22): parameter names come from the page's member signature (JDK 8 `<pre>`,
+  JDK 11+ `methodSignature`/`member-signature` layouts) when the member's section matches exactly (anchor name and
+  erased parameter types, and every shown parameter type agrees); on any mismatch the bytecode names stay. The
+  stored signature and `ParameterInfo` names are rewritten at index time.
 
 ## Database (`index`, T03)
 
