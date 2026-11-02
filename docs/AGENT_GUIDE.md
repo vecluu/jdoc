@@ -40,4 +40,6 @@ Read the source of existing classes when you need detail; do not re-implement wh
    deviations, changes outside your files, doc impact (SPEC, ARCHITECTURE, README sections to change and why),
    known gaps, a test summary, and a proposed commit split
    (`<gitmoji> <type>(<scope>): <subject>` plus paths; the orchestrator adds `Refs #N` or `Closes #N`).
+   A fresh reviewer agent checks your work against the brief, the rules and for correctness, using these notes: keep
+   decisions and deviations, changes outside your files and doc impact complete.
 3. Reply to the orchestrator in at most 15 lines: status, test result, notable decisions, open issues. No code.

@@ -37,11 +37,11 @@ Use the Maven wrapper (`./mvnw`); it needs JDK 25.
 
 ## Workflow
 
-GitHub issue → local brief → implementing agent → notes → orchestrator verifies (`./mvnw -B verify`), commits and
-keeps the docs below current. The maintainer approves each wave of briefs (disjoint files per wave), every push and
-every GitHub write; only the orchestrator writes to GitHub. `tasks/` holds briefs named after their issue
-(`tasks/<N>-<slug>.md`; the issue number is the task's only ID), agent notes and the wave board; it is local and
-ignored by git, so the public trace of a task is its issue and its commits. Orchestrator sessions start with `/orchestrate`
+GitHub issue → local brief → implementing agent → notes → reviewer agent → orchestrator verifies (`./mvnw -B verify`),
+commits and keeps the docs below current. The maintainer approves each wave of briefs (disjoint files per wave), every
+push and every GitHub write; only the orchestrator writes to GitHub. `tasks/` holds briefs named after their issue
+(`tasks/<N>-<slug>.md`; the issue number is the task's only ID), agent notes and the wave board; it is local and ignored
+by git, so the public trace of a task is its issue and its commits. Orchestrator sessions start with `/orchestrate`
 (`.claude/skills/orchestrate/SKILL.md`).
 
 ## Commits, pushes, releases
