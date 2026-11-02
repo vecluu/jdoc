@@ -25,7 +25,6 @@ target/
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
-/dist/
 /nbdist/
 /.nb-gradle/
 build/
@@ -37,3 +36,5 @@ build/
 
 ### Mac OS ###
 .DS_Store
+### jdoc release staging (scripts/assemble.sh) ###
+/out/
