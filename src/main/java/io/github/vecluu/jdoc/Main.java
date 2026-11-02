@@ -1,11 +1,13 @@
 package io.github.vecluu.jdoc;
 
 import io.github.vecluu.jdoc.cli.JdocCli;
+import io.github.vecluu.jdoc.cli.TrainingWorkload;
 import io.github.vecluu.jdoc.config.JdocEnvironment;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 
 /** Process entry point: configures logging, runs {@link JdocCli} and exits with its code. */
 public final class Main {
@@ -19,7 +21,8 @@ public final class Main {
     }
 
     /**
-     * Runs jdoc against the process environment without exiting.
+     * Runs jdoc against the process environment without exiting. If the {@value TrainingWorkload#PROPERTY} system
+     * property is set, runs that AOT training workload instead and ignores the arguments.
      *
      * @return the exit code
      */
@@ -27,6 +30,10 @@ public final class Main {
         configureLogging();
         PrintWriter out = new PrintWriter(new OutputStreamWriter(stdout, StandardCharsets.UTF_8));
         PrintWriter err = new PrintWriter(new OutputStreamWriter(stderr, StandardCharsets.UTF_8));
+        String training = System.getProperty(TrainingWorkload.PROPERTY);
+        if (training != null) {
+            return TrainingWorkload.forEnvironment(out, err).runFile(Path.of(training));
+        }
         return JdocCli.forEnvironment(JdocEnvironment::fromSystem, out, err).execute(args);
     }
 
