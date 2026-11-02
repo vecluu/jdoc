@@ -190,7 +190,7 @@ Environment variables:
 - **Refresh:** every call checks the module's POMs and the jars it uses. A changed POM triggers resolution again,
   and a new or changed jar is indexed again on its own. `jdoc index --force` rebuilds the module's artifacts.
 
-[`OUTLINE.md`](OUTLINE.md) has the full design and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) has the code
+[`docs/SPEC.md`](docs/SPEC.md) has the full design and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) has the code
 structure.
 
 ## Performance

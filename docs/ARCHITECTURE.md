@@ -1,6 +1,6 @@
 # jdoc architecture and shared contracts
 
-This document is the contract between all implementing agents. `OUTLINE.md` is the product spec; this file decides
+This document is the contract between all implementing agents. `docs/SPEC.md` is the product spec; this file decides
 how the Java program is structured. Only the Java CLI is in scope (no CI pipeline, scripts, installer or skill files).
 
 ## Build and toolchain
@@ -139,7 +139,7 @@ One line, as the agent would write the declaration, without `public` and without
 ## Database (`index`, T03)
 
 SQLite file `index.db`, WAL mode, `PRAGMA user_version` for schema versioning (on mismatch: drop and rebuild).
-Tables follow `OUTLINE.md` with these refinements:
+Tables follow `docs/SPEC.md` with these refinements:
 
 - `artifacts`: id, artifact key (unique: GAV string or `jdk:<version>`), jar path, mtime, size, sources jar,
   javadoc jar, indexed-at.
