@@ -76,7 +76,6 @@ class CodeMapReferencesTest {
         assertThat(CodeMapReferences.pathReference("./mvnw -B verify")).contains("mvnw");
         assertThat(CodeMapReferences.pathReference("pom.xml")).contains("pom.xml");
         assertThat(CodeMapReferences.pathReference("CLAUDE.md")).contains("CLAUDE.md");
-        assertThat(CodeMapReferences.pathReference("tasks/")).contains("tasks");
     }
 
     @Test
@@ -89,6 +88,7 @@ class CodeMapReferencesTest {
         assertThat(CodeMapReferences.pathReference("~/.cache/jdoc")).isEmpty();
         assertThat(CodeMapReferences.pathReference("deps.txt")).isEmpty();
         assertThat(CodeMapReferences.pathReference("tasks")).isEmpty();
+        assertThat(CodeMapReferences.pathReference("tasks/README.md")).isEmpty();
     }
 
     private static Optional<TypeRef> type(String span) {

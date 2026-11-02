@@ -16,9 +16,12 @@ final class CodeMapReferences {
     /** The base package; a span may start with it and is then read without it. */
     static final String BASE_PACKAGE = "io.github.vecluu.jdoc.";
 
-    /** Top-level directories of the repository; a path span must start with one of them. */
+    /**
+     * Top-level directories of the repository; a path span must start with one of them. Not {@code tasks/}: it holds
+     * the orchestrator's local files and is ignored by git, so it never exists in a clean checkout.
+     */
     static final Set<String> ROOT_DIRECTORIES =
-            Set.of("src", "docs", "dist", "scripts", "it", "tasks", ".github", ".mvn");
+            Set.of("src", "docs", "dist", "scripts", "it", ".github", ".mvn");
 
     /** Files at the repository root that a span may name without a directory (besides upper-case {@code *.md}). */
     static final Set<String> ROOT_FILES = Set.of("pom.xml", "mvnw");
