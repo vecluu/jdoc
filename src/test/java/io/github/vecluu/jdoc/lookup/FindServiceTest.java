@@ -152,6 +152,37 @@ class FindServiceTest {
     }
 
     @Test
+    void equalScoresListTheModulesLibrariesBeforeTheJdk(@TempDir Path dir) {
+        try (LookupIndex jsoupModule = LookupIndex.open(dir)) {
+            // the JDK comes first in the scope (as javac sees it), the library after it
+            jsoupModule.add(LookupIndex.artifact(ArtifactKey.jdk(25)), List.of(
+                            LookupIndex.publicInterface("javax.swing.text.Document"),
+                            LookupIndex.publicInterface("org.w3c.dom.Document"),
+                            LookupIndex.publicInterface("org.w3c.dom.DocumentType")),
+                    List.of(method("javax.swing.text.Document", "getLength")));
+            jsoupModule.add("org.jsoup:jsoup:1.17.2", List.of(
+                            publicClass("org.jsoup.nodes.Document"),
+                            publicClass("org.jsoup.nodes.DocumentType")),
+                    LookupIndex.constructor("org.jsoup.nodes.Document", "String baseUri"));
+            FindService service = new FindService(new ScopedTypes(jsoupModule.types), jsoupModule.members);
+
+            assertThat(service.find("Document", jsoupModule.scope()).hits()).extracting(FindHit::reference)
+                    .containsExactly(
+                            "org.jsoup.nodes.Document",
+                            "org.jsoup.nodes.Document#Document(String)",
+                            "javax.swing.text.Document",
+                            "org.w3c.dom.Document",
+                            "org.jsoup.nodes.DocumentType",
+                            "org.w3c.dom.DocumentType");
+            assertThat(service.find("DocumentType", jsoupModule.scope()).hits()).extracting(FindHit::reference)
+                    .containsExactly("org.jsoup.nodes.DocumentType", "org.w3c.dom.DocumentType");
+            // a better JDK match still wins over a weaker library match
+            assertThat(service.find("getLength", jsoupModule.scope()).hits()).extracting(FindHit::reference)
+                    .containsExactly("javax.swing.text.Document#getLength()");
+        }
+    }
+
+    @Test
     void noMatchIsAnEmptyResult() {
         assertThat(find.find("zzz", index.scope()).isEmpty()).isTrue();
     }

@@ -3,6 +3,7 @@ package io.github.vecluu.jdoc.lookup;
 import io.github.vecluu.jdoc.index.MemberRepository;
 import io.github.vecluu.jdoc.model.IndexedMember;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,7 +14,8 @@ import lombok.RequiredArgsConstructor;
  * {@code Type#name(params)} ({@link MemberMatch#reference()}).
  *
  * <p>Names match ignoring case; if any member matches with exact case, only exact-case matches are returned.
- * Results are ordered by declaring type name, then declaration order. A type shadowed by an earlier classpath
+ * Results list the module's classpath artifacts' members before the JDK's (as {@link FindService} ranks equal
+ * matches), each group ordered by declaring type name, then declaration order. A type shadowed by an earlier classpath
  * artifact with the same binary name is skipped.
  */
 @RequiredArgsConstructor
@@ -49,6 +51,7 @@ public final class MemberSearchService {
                 result.add(new MemberMatch(row, type, false));
             }
         }
+        result.sort(Comparator.comparing(match -> match.declaringType().artifact().isJdk()));
         return List.copyOf(result);
     }
 }

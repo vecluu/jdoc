@@ -6,6 +6,7 @@ import static io.github.vecluu.jdoc.lookup.LookupIndex.publicClass;
 import static io.github.vecluu.jdoc.lookup.LookupIndex.type;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.vecluu.jdoc.model.ArtifactKey;
 import io.github.vecluu.jdoc.model.TypeKind;
 import io.github.vecluu.jdoc.model.Visibility;
 import java.nio.file.Path;
@@ -63,5 +64,18 @@ class MemberSearchServiceTest {
     void unknownOrBlankNamesGiveNothing() {
         assertThat(search.search("nothing", index.scope())).isEmpty();
         assertThat(search.search(" ", index.scope())).isEmpty();
+    }
+
+    @Test
+    void listsTheModulesLibrariesBeforeTheJdk(@TempDir Path dir) {
+        try (LookupIndex module = LookupIndex.open(dir)) {
+            module.add(LookupIndex.artifact(ArtifactKey.jdk(25)), List.of(publicClass("java.util.Optional")),
+                    List.of(method("java.util.Optional", "of", "Object value")));
+            module.add("com.acme:lib:1.0", List.of(publicClass("z.Maybe")), method("z.Maybe", "of", "Object value"));
+            MemberSearchService service = new MemberSearchService(new ScopedTypes(module.types), module.members);
+
+            assertThat(service.search("of", module.scope())).extracting(MemberMatch::reference)
+                    .containsExactly("z.Maybe#of(Object)", "java.util.Optional#of(Object)");
+        }
     }
 }

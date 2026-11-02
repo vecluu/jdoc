@@ -29,7 +29,10 @@ import lombok.RequiredArgsConstructor;
  * pattern's ASCII characters in order (a superset of every hump, prefix and substring match), these are matched in
  * memory, and the rows of the matching names are read best name first.
  * Members are then scored like types. Results are ordered by score (kind, then
- * shorter name), types before members, then alphabetically, and capped at {@link #MAX_HITS}.
+ * shorter name); at equal score hits from the module's classpath artifacts come before JDK hits (the library the
+ * agent works with is the likelier target: {@code find Document} in a jsoup module lists
+ * {@code org.jsoup.nodes.Document} before {@code javax.swing.text.Document}), then types before members, then
+ * alphabetically; capped at {@link #MAX_HITS}.
  */
 @RequiredArgsConstructor
 public final class FindService {
@@ -57,6 +60,7 @@ public final class FindService {
             hits.addAll(memberHits(pattern, rows, scope));
         }
         hits.sort(Comparator.comparing(FindHit::score)
+                .thenComparing(FindHit::fromJdk)
                 .thenComparing(FindHit::isMember)
                 .thenComparing(FindHit::reference));
         boolean truncated = hits.size() > MAX_HITS || memberScanFull;
@@ -75,7 +79,9 @@ public final class FindService {
             String name = qualified ? ref.name().displayName() : ref.name().simpleName();
             pattern.match(name).ifPresent(score -> scored.add(new Scored(ref, score)));
         }
+        Set<Long> jdk = jdkArtifactIds(scope);
         scored.sort(Comparator.comparing(Scored::score)
+                .thenComparing(entry -> jdk.contains(entry.ref().artifactId()))
                 .thenComparing(entry -> entry.ref().name().displayName())
                 .thenComparing(scope.byRank(entry -> entry.ref().artifactId())));
         List<FindHit> hits = new ArrayList<>();
@@ -98,6 +104,12 @@ public final class FindService {
             }
         }
         return hits;
+    }
+
+    private static Set<Long> jdkArtifactIds(LookupScope scope) {
+        Set<Long> ids = new HashSet<>();
+        scope.artifacts().stream().filter(ScopedArtifact::isJdk).forEach(artifact -> ids.add(artifact.id()));
+        return ids;
     }
 
     /**

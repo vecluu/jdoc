@@ -22,6 +22,11 @@ public record FindHit(String reference, LocatedType type, Optional<IndexedMember
         Objects.requireNonNull(score, "score");
     }
 
+    /** True if the hit comes from the JDK rather than from one of the module's classpath artifacts. */
+    public boolean fromJdk() {
+        return type.artifact().isJdk();
+    }
+
     /** True for a member hit, false for a type hit. */
     public boolean isMember() {
         return member.isPresent();

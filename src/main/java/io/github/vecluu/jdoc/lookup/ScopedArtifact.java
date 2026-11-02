@@ -19,4 +19,9 @@ public record ScopedArtifact(long id, ArtifactKey key) {
     public String label() {
         return key.label();
     }
+
+    /** True for the JDK; false for the module's classpath artifacts. */
+    public boolean isJdk() {
+        return key instanceof ArtifactKey.Jdk;
+    }
 }
