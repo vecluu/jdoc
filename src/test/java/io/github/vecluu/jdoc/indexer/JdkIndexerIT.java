@@ -1,7 +1,6 @@
 package io.github.vecluu.jdoc.indexer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.vecluu.jdoc.bytecode.ClassFileReader;
 import io.github.vecluu.jdoc.config.JdkInfo;
@@ -13,6 +12,7 @@ import io.github.vecluu.jdoc.model.TypeDescriptor;
 import io.github.vecluu.jdoc.model.TypeKind;
 import io.github.vecluu.jdoc.model.TypeName;
 import io.github.vecluu.jdoc.source.JavaSourceParser;
+import io.github.vecluu.jdoc.testsupport.Prerequisites;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.List;
@@ -42,7 +42,7 @@ class JdkIndexerIT {
 
     @Test
     void indexesSrcZip() {
-        assumeTrue(JDK.srcZip().isPresent(), "JDK has no lib/src.zip");
+        Prerequisites.fromEnvironment().require(JDK.srcZip().isPresent(), "JDK has no lib/src.zip");
         try (IndexerFixture fixture = new IndexerFixture(tmp.resolve("index.db"))) {
             StoredArtifact stored = index(fixture, JDK);
             long id = stored.artifact().id();
