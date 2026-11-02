@@ -5,13 +5,13 @@ import static io.github.vecluu.jdoc.source.ParsedSources.member;
 import static io.github.vecluu.jdoc.source.ParsedSources.signature;
 import static io.github.vecluu.jdoc.source.ParsedSources.type;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.vecluu.jdoc.model.DocSource;
 import io.github.vecluu.jdoc.model.MemberKind;
 import io.github.vecluu.jdoc.model.TypeKind;
 import io.github.vecluu.jdoc.model.TypeName;
 import io.github.vecluu.jdoc.model.Visibility;
+import io.github.vecluu.jdoc.testsupport.Prerequisites;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +27,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
-/** Parses real files from the running JDK's {@code lib/src.zip}; skipped if the JDK has no {@code src.zip}. */
+/**
+ * Parses real files from the running JDK's {@code lib/src.zip}; skipped if the JDK has none (fails in CI instead).
+ */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class JdkSourceParseIT {
 
@@ -39,7 +41,7 @@ class JdkSourceParseIT {
     @BeforeAll
     void openSrcZip() throws IOException {
         Path zip = Path.of(System.getProperty("java.home"), "lib", "src.zip");
-        assumeTrue(Files.isRegularFile(zip), "no src.zip in the running JDK");
+        Prerequisites.fromEnvironment().require(Files.isRegularFile(zip), "no src.zip in the running JDK");
         srcZip = new ZipFile(zip.toFile());
     }
 
