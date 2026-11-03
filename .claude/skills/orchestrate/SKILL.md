@@ -40,6 +40,7 @@ Treat any arguments as the session's goal.
    goal joins the notes' "Known gaps". Skip the review only for changes you made yourself without an agent.
 6. **Verify.** After any fix, run a clean `./mvnw -B verify` again; if the fix was large, review it again. If verify is
    red, send the agent back (resume it) rather than fixing large things yourself.
+   Every full build, yours and the agents', runs as `flock target/verify.lock ./mvnw ...`, so only one runs at a time.
 7. **Commit.** Follow the notes' proposed split, adjusted as needed. Agents sometimes stage files: run
    `git restore --staged .` first, then `git add <paths>` per commit, because a plain `git commit` takes everything
    staged. Add `Refs #N` to work commits and `Closes #N` to the last. Apply the notes' "Doc impact" to the shared docs

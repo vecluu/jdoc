@@ -20,7 +20,7 @@ Read the source of existing classes when you need detail; do not re-implement wh
   If compilation fails in another task's half-written package, wait and retry; never fix their code.
 - **Skip the slow ITs while iterating** (`@Tag("slow")`: real JDK, real Maven, installs and JVMs):
   `./mvnw -B -q -Djdoc.buildDir=target/<N> verify -DexcludedGroups=slow`. Run the full `verify` before you
-  finish.
+  finish, through the shared lock so parallel agents take turns: `flock target/verify.lock ./mvnw -B -q ...`.
 - Keep the code compiling; write files completely rather than in broken intermediate states.
 - Do not commit, push, tag or branch (unless your brief allows a throwaway CI branch). Do not delete files you did
   not create. Do not edit `CHANGELOG.md`; it is written at release time.
