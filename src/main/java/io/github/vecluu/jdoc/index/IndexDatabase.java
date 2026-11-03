@@ -25,7 +25,9 @@ import org.sqlite.SQLiteConfig;
  *
  * <p>Opening creates the file if needed and switches it to WAL mode with foreign keys enforced and a busy timeout,
  * so a second process waits for a writer instead of failing. The schema is versioned with {@code PRAGMA user_version};
- * a file with another version is dropped and rebuilt (the index is a cache).
+ * a file with another version is dropped and rebuilt (the index is a cache). Opening a file whose schema is current
+ * takes no write lock, so it does not wait for another connection's write transaction; creating or rebuilding the
+ * schema happens under the write lock.
  *
  * <p>Write work is grouped with {@link #inTransaction(Supplier)}; nested calls join the outer transaction. An instance
  * wraps a single connection and must be confined to one thread at a time; open one instance per thread if needed.
@@ -289,7 +291,16 @@ public final class IndexDatabase implements AutoCloseable {
         }
     }
 
+    /**
+     * Creates or rebuilds the schema unless it is current. The version is read first without a lock, so opening a
+     * current index never waits for another connection's write transaction; only when the schema must be created or
+     * rebuilt does this take the write lock and read the version again under it, since another connection may have
+     * done the work in between.
+     */
     private void initialiseSchema() {
+        if (schemaVersion() == Schema.VERSION) {
+            return;
+        }
         runInTransaction(() -> {
             int version = schemaVersion();
             if (version == Schema.VERSION) {
