@@ -24,11 +24,15 @@ import lombok.extern.slf4j.Slf4j;
  *   "resolvedAtMillis": 1793527200000
  * }
  * </pre>
+ *
+ * <p>Bump {@link #FORMAT_VERSION} whenever the encoding or the meaning of a field changes: a meta file whose
+ * {@code formatVersion} is missing or differs decodes as empty, so the cache entry is not offered as the stale
+ * fallback.
  */
 @Slf4j
 public final class ModuleMetaCodec {
 
-    private static final long FORMAT_VERSION = 1;
+    static final long FORMAT_VERSION = 1;
 
     /** Encodes the meta as JSON text. */
     public String encode(ModuleMeta meta) {
@@ -44,10 +48,18 @@ public final class ModuleMetaCodec {
         return FlatJson.write(fields);
     }
 
-    /** Decodes meta JSON; empty (logged at debug) if the text is malformed or misses required fields. */
+    /**
+     * Decodes meta JSON; empty (logged at debug) if the text is malformed, misses required fields or has a missing or
+     * other {@code formatVersion}.
+     */
     public Optional<ModuleMeta> decode(String json) {
         try {
             Map<String, Object> fields = FlatJson.read(json);
+            Object version = fields.get("formatVersion");
+            if (!(version instanceof Long number && number == FORMAT_VERSION)) {
+                log.debug("ignoring module meta of format version {}", version);
+                return Optional.empty();
+            }
             Path modulePath = Path.of(string(fields, "modulePath"));
             String pomKey = string(fields, "pomKey");
             Instant resolvedAt = Instant.parse(string(fields, "resolvedAt"));

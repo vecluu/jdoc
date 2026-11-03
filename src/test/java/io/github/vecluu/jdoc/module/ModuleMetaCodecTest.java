@@ -35,13 +35,53 @@ class ModuleMetaCodecTest {
     @Test
     void malformedOrIncompleteMetaIsEmpty() {
         assertThat(codec.decode("not json")).isEmpty();
-        assertThat(codec.decode("{\"pomKey\":\"k\",\"resolvedAt\":\"2026-01-01T00:00:00Z\"}")).isEmpty();
-        assertThat(codec.decode("{\"modulePath\":\"/w\",\"pomKey\":\"k\",\"resolvedAt\":\"yesterday\"}")).isEmpty();
+        assertThat(codec.decode("{\"formatVersion\":1,\"pomKey\":\"k\",\"resolvedAt\":\"2026-01-01T00:00:00Z\"}"))
+                .isEmpty();
+        assertThat(codec.decode("{\"formatVersion\":1,\"modulePath\":\"/w\",\"pomKey\":\"k\","
+                + "\"resolvedAt\":\"yesterday\"}")).isEmpty();
     }
 
     @Test
     void ignoresUnknownFields() {
-        assertThat(codec.decode("{\"modulePath\":\"/w\",\"pomKey\":\"k\",\"resolvedAt\":\"2026-01-01T00:00:00Z\","
-                + "\"future\":7}")).isPresent();
+        assertThat(codec.decode(meta("\"formatVersion\":1,\"future\":7"))).isPresent();
+    }
+
+    @Test
+    void writesTheCurrentFormatVersion() {
+        String json = codec.encode(new ModuleMeta(Path.of("/w"), "k", List.of(), Instant.EPOCH));
+
+        assertThat(json).contains("\"formatVersion\": " + ModuleMetaCodec.FORMAT_VERSION + ",");
+    }
+
+    @Test
+    void currentFormatVersionDecodes() {
+        assertThat(codec.decode(meta("\"formatVersion\":" + ModuleMetaCodec.FORMAT_VERSION)))
+                .contains(new ModuleMeta(Path.of("/w"), "k", List.of(), Instant.parse("2026-01-01T00:00:00Z")));
+    }
+
+    @Test
+    void olderFormatVersionIsEmpty() {
+        assertThat(codec.decode(meta("\"formatVersion\":" + (ModuleMetaCodec.FORMAT_VERSION - 1)))).isEmpty();
+    }
+
+    @Test
+    void newerFormatVersionIsEmpty() {
+        assertThat(codec.decode(meta("\"formatVersion\":" + (ModuleMetaCodec.FORMAT_VERSION + 1)))).isEmpty();
+    }
+
+    @Test
+    void missingFormatVersionIsEmpty() {
+        assertThat(codec.decode(meta("\"other\":1"))).isEmpty();
+    }
+
+    @Test
+    void nonIntegerFormatVersionIsEmpty() {
+        assertThat(codec.decode(meta("\"formatVersion\":\"1\""))).isEmpty();
+        assertThat(codec.decode(meta("\"formatVersion\":1.5"))).isEmpty();
+    }
+
+    /** A complete meta object for module {@code /w}, key {@code k}, with the given extra fields. */
+    private static String meta(String extraFields) {
+        return "{" + extraFields + ",\"modulePath\":\"/w\",\"pomKey\":\"k\",\"resolvedAt\":\"2026-01-01T00:00:00Z\"}";
     }
 }
