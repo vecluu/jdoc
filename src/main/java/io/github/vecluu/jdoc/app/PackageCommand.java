@@ -6,15 +6,16 @@ import io.github.vecluu.jdoc.lookup.LookupScope;
 import io.github.vecluu.jdoc.lookup.PackageDoc;
 import io.github.vecluu.jdoc.lookup.PackageLookup;
 import io.github.vecluu.jdoc.lookup.PackageView;
+import io.github.vecluu.jdoc.lookup.ScopedArtifact;
 import io.github.vecluu.jdoc.model.TypeDescriptor;
 import io.github.vecluu.jdoc.text.ColumnLayout;
 import io.github.vecluu.jdoc.text.ResultHeader;
 import io.github.vecluu.jdoc.text.TextResult;
 import java.nio.file.Path;
-import java.util.LinkedHashSet;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * {@code jdoc package <pkg>}: the {@code package-info} doc, then the package's types with first sentences:
@@ -27,7 +28,8 @@ import java.util.Set;
  * enum Month               A month-of-year, such as 'July'.
  * </pre>
  *
- * The artifact labels are those of the package's types (several if the package is split). Exit code 1 with
+ * The artifact labels are those of the package's types (several if the package is split), in classpath order like
+ * every other precedence in jdoc (the JDK where the scope ranks it). Exit code 1 with
  * {@code no package named x on this classpath} (and similar names) if no API type is in it.
  */
 public final class PackageCommand implements LookupCommand {
@@ -64,13 +66,14 @@ public final class PackageCommand implements LookupCommand {
     }
 
     private static String header(PackageView view, LookupScope scope) {
-        Set<String> labels = new LinkedHashSet<>();
-        boolean library = false;
-        for (LocatedType type : view.types()) {
-            labels.add(type.label());
-            library |= !type.artifact().key().isJdk();
-        }
-        String header = view.name() + "  package  (" + String.join(", ", labels) + ")";
+        List<ScopedArtifact> artifacts = view.types().stream()
+                .map(LocatedType::artifact)
+                .distinct()
+                .sorted(Comparator.comparingInt((ScopedArtifact artifact) -> scope.rank(artifact.id())))
+                .toList();
+        boolean library = artifacts.stream().anyMatch(artifact -> !artifact.isJdk());
+        String labels = artifacts.stream().map(ScopedArtifact::label).distinct().collect(Collectors.joining(", "));
+        String header = view.name() + "  package  (" + labels + ")";
         return scope.versionUnresolved() && library ? header + "  " + ResultHeader.VERSION_UNRESOLVED_TAG : header;
     }
 

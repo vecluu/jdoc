@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.vecluu.jdoc.model.ResolutionStatus;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,6 +56,29 @@ class PackageCommandTest {
         assertThat(lines(result)).containsExactly(
                 "java.time  package  (jdk 25)",
                 "final class Duration  A time-based amount of time, such as '34.5 seconds'.");
+    }
+
+    @Test
+    void splitPackageListsArtifactsInClasspathOrder(@TempDir Path directory) {
+        try (AppIndex split = AppIndex.standard(directory)) {
+            split.addLibrary("com.zeta:zeta:2.0", Map.of("com/split/Zed.java", """
+                    package com.split;
+                    /** Last by name, first on the classpath. */
+                    public class Zed {}
+                    """));
+            split.addLibrary("com.alpha:alpha:1.0", Map.of("com/split/Alpha.java", """
+                    package com.split;
+                    /** First by name, last on the classpath. */
+                    public class Alpha {}
+                    """));
+
+            CommandResult result = new PackageCommand(split.context()).run("com.split", Optional.empty());
+
+            assertThat(lines(result)).containsExactly(
+                    "com.split  package  (zeta 2.0, alpha 1.0)",
+                    "class Alpha  First by name, last on the classpath.",
+                    "class Zed    Last by name, first on the classpath.");
+        }
     }
 
     @Test
