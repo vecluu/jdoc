@@ -20,6 +20,9 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>Candidates are the queried type's own API members; only if none matches are inherited members tried
  * (constructors are never inherited), each reported with its declaring type. Every matching overload is returned.
+ * {@code Type#Type[(<params>)]} names the type's own methods of that name that match it, and the constructors when
+ * none does: without parameters that is any declared method of that name; with parameters, a printed constructor
+ * reference {@code Type#Type(params)} still finds its constructor. {@code Type#<init>} always names the constructors.
  * Inherited protected members of a type that cannot be subclassed are not candidates; when they would have matched,
  * the not-found outcome carries them so the caller can explain why.
  */
@@ -47,9 +50,12 @@ public final class MemberLookupService {
         return lookup(parsed.orElseThrow(), scope);
     }
 
-    /** Looks up an already parsed reference. */
-    public MemberLookup lookup(MemberReference reference, LookupScope scope) {
-        TypeLookup typeLookup = typeResolver.resolve(reference.type(), scope);
+    /**
+     * Looks up an already parsed reference. A {@code Type#Type} reference means the constructors unless one of the
+     * type's own methods matches it (by name, and by parameters when given).
+     */
+    public MemberLookup lookup(MemberReference parsed, LookupScope scope) {
+        TypeLookup typeLookup = typeResolver.resolve(parsed.type(), scope);
         if (!(typeLookup instanceof TypeLookup.Found found)) {
             return new MemberLookup.TypeNotResolved(typeLookup);
         }
@@ -57,6 +63,8 @@ public final class MemberLookupService {
         List<MemberMatch> own = typeMembers.declared(type).stream()
                 .map(member -> new MemberMatch(member, type, false))
                 .toList();
+        MemberReference reference = parsed.namedLikeType() && !matchesOwnMethod(own, parsed)
+                ? parsed.asConstructor() : parsed;
         List<MemberMatch> ownMatches = matching(own, reference);
         if (!ownMatches.isEmpty()) {
             return new MemberLookup.Found(type, ownMatches);
@@ -71,6 +79,11 @@ public final class MemberLookupService {
         List<MemberMatch> protectedMatches = reference.constructor() ? List.of()
                 : matching(typeMembers.inheritedForSubclassesOnly(type, scope), reference);
         return new MemberLookup.MemberNotFound(type, reference, suggestions(all, reference), protectedMatches);
+    }
+
+    private boolean matchesOwnMethod(List<MemberMatch> own, MemberReference reference) {
+        return own.stream().map(MemberMatch::descriptor)
+                .anyMatch(member -> member.kind() == MemberKind.METHOD && overloads.matches(reference, member));
     }
 
     private List<MemberMatch> matching(List<MemberMatch> candidates, MemberReference reference) {

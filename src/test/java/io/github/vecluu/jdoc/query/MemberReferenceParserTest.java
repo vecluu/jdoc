@@ -63,12 +63,26 @@ class MemberReferenceParserTest {
     }
 
     @Test
-    void constructorBySimpleTypeName() {
+    void nameOfTheTypeIsLeftToTheLookup() {
         MemberReference reference = parse("java.util.ArrayList#ArrayList(int)");
 
-        assertThat(reference.constructor()).isTrue();
+        assertThat(reference.constructor()).isFalse();
+        assertThat(reference.namedLikeType()).isTrue();
         assertThat(reference.name()).isEqualTo("ArrayList");
         assertThat(reference.parameterTypes()).contains(List.of("int"));
+        assertThat(parse("Map$Entry#Entry").namedLikeType()).isTrue();
+        assertThat(parse("ArrayList<E>#ArrayList").namedLikeType()).isTrue();
+    }
+
+    @Test
+    void asConstructorKeepsNameAndParameters() {
+        MemberReference reference = parse("ArrayList#ArrayList(int)").asConstructor();
+
+        assertThat(reference.constructor()).isTrue();
+        assertThat(reference.namedLikeType()).isFalse();
+        assertThat(reference.name()).isEqualTo("ArrayList");
+        assertThat(reference.parameterTypes()).contains(List.of("int"));
+        assertThat(reference.input()).isEqualTo("ArrayList#ArrayList(int)");
     }
 
     @Test
@@ -76,16 +90,16 @@ class MemberReferenceParserTest {
         MemberReference reference = parse("ArrayList#<init>");
 
         assertThat(reference.constructor()).isTrue();
+        assertThat(reference.namedLikeType()).isFalse();
         assertThat(reference.name()).isEqualTo("ArrayList");
         assertThat(reference.allOverloads()).isTrue();
         assertThat(parse("java.util.Map.Entry#<init>()").name()).isEqualTo("Entry");
-        assertThat(parse("Map$Entry#Entry").constructor()).isTrue();
-        assertThat(parse("ArrayList<E>#ArrayList").constructor()).isTrue();
     }
 
     @Test
     void methodWithOtherNameIsNoConstructor() {
         assertThat(parse("ArrayList#arrayList").constructor()).isFalse();
+        assertThat(parse("ArrayList#arrayList").namedLikeType()).isFalse();
     }
 
     @ParameterizedTest

@@ -110,8 +110,8 @@ class OverloadMatcherTest {
         assertThat(matcher.matches(reference("Optional#of"), empty)).isFalse();
         assertThat(matcher.matches(reference("Optional#empty()"), empty)).isTrue();
         assertThat(matcher.matches(reference("Optional#<init>(T)"), constructor)).isTrue();
-        assertThat(matcher.matches(reference("Optional#Optional"), constructor)).isTrue();
-        assertThat(matcher.matches(reference("Optional#Optional()"), constructor)).isFalse();
+        assertThat(matcher.matches(reference("Optional#<init>"), constructor)).isTrue();
+        assertThat(matcher.matches(reference("Optional#<init>()"), constructor)).isFalse();
         assertThat(matcher.matches(reference("Optional#EMPTY"), field)).isTrue();
         assertThat(matcher.matches(reference("Optional#EMPTY()"), field)).isFalse();
     }

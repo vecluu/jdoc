@@ -11,7 +11,9 @@ import java.util.Optional;
  *   <li>No parentheses: every overload; {@code ()}: exactly zero parameters.</li>
  *   <li>Parameters are comma separated, whitespace tolerant, normalized by {@link ParameterTypes} (generics erased,
  *       varargs as arrays, qualified names reduced to simple names; a parameter name after the type is ignored).</li>
- *   <li>Constructors: {@code Type#Type(...)} and {@code Type#<init>(...)}.</li>
+ *   <li>Constructors: {@code Type#<init>(...)}. {@code Type#Type(...)} is parsed as a method named like the type;
+ *       the lookup, which knows the declared members, reads it as the constructors when none of the type's own methods
+ *       matches it ({@link MemberReference#namedLikeType()}).</li>
  * </ul>
  */
 public final class MemberReferenceParser {
@@ -64,8 +66,7 @@ public final class MemberReferenceParser {
         if (!name.equals(INIT) && !Identifiers.isIdentifier(name)) {
             return ParseResult.failure("'" + name + "' is not a valid member name in '" + input + "'");
         }
-        // A method that happens to be named like its type's simple name is therefore read as a constructor.
-        boolean constructor = name.equals(INIT) || name.equals(type.simpleName());
+        boolean constructor = name.equals(INIT);
         String memberName = constructor ? type.simpleName() : name;
         if (open < 0) {
             if (memberText.indexOf(')') >= 0) {

@@ -110,6 +110,9 @@ naming the type and the artifact version it came from (`commons-lang3 3.17.0`, `
 - `<type>` is an FQCN or a simple name; nested types as `Outer.Inner` or `Outer$Inner`. An ambiguous simple name
   lists the candidate FQCNs (exit 2).
 - `<params>` are simple type names, comma separated (`#of(int,int)`); generics are erased for matching.
+- Constructors are `<type>#<init>[(<params>)]` or `<type>#<SimpleName>[(<params>)]`, the form jdoc prints.
+  `<type>#<SimpleName>` names the type's own methods of that name that match (any of them without params), and the
+  constructors when none does; `#<init>` always names the constructors.
 - Options: `--from <path>` (module of that file), `--page <n>`, `--force` (index only), `--help`, `--version`.
   Options follow the command.
 - Inherited members: names grouped by declaring type; inherited protected members are hidden for types that cannot be

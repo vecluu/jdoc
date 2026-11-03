@@ -1,5 +1,7 @@
 package io.github.vecluu.jdoc.lookup;
 
+import static io.github.vecluu.jdoc.lookup.LookupIndex.constructor;
+import static io.github.vecluu.jdoc.lookup.LookupIndex.field;
 import static io.github.vecluu.jdoc.lookup.LookupIndex.method;
 import static io.github.vecluu.jdoc.lookup.LookupIndex.publicClass;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,7 +25,13 @@ class MemberLookupServiceTest {
     void setUp() {
         index = LookupIndex.open(tmp);
         SampleSources.addTo(index);
-        index.add("com.acme:generic:1.0", List.of(publicClass("g.Box"), publicClass("g.Dup"), publicClass("h.Dup")),
+        index.add("com.acme:generic:1.0", List.of(publicClass("g.Box"), publicClass("g.Dup"), publicClass("h.Dup"),
+                        publicClass("g.Odd"), publicClass("g.Plain")),
+                constructor("g.Odd"),
+                constructor("g.Odd", "int size"),
+                method("g.Odd", "Odd", "String name"),
+                constructor("g.Plain", "int size"),
+                field("g.Plain", "Plain"),
                 method("g.Box", "put", "T value:Object"),
                 method("g.Box", "put", "T value:Object", "int times"),
                 method("g.Box", "all", "List<? extends T> values:List"),
@@ -92,6 +100,54 @@ class MemberLookupServiceTest {
                 .as("implicit default constructor").containsExactly("a.Other#Other()");
         assertThat(services.memberLookup().lookup("a.Named#Named", index.scope()))
                 .isInstanceOf(MemberLookup.MemberNotFound.class);
+    }
+
+    @Test
+    void methodNamedLikeItsTypeWinsOverTheConstructors() {
+        assertThat(found("g.Odd#Odd").members()).extracting(MemberMatch::reference)
+                .containsExactly("g.Odd#Odd(String)");
+        assertThat(found("g.Odd#Odd(String)").members()).extracting(MemberMatch::reference)
+                .containsExactly("g.Odd#Odd(String)");
+    }
+
+    @Test
+    void typeNameWithArgumentsNoMethodMatchesFallsBackToTheConstructors() {
+        assertThat(found("g.Odd#Odd(int)").members()).extracting(MemberMatch::reference)
+                .containsExactly("g.Odd#Odd(int)");
+        assertThat(found("g.Odd#Odd()").members()).extracting(MemberMatch::reference)
+                .containsExactly("g.Odd#Odd()");
+        assertThat(services.memberLookup().lookup("g.Odd#Odd(long)", index.scope()))
+                .isInstanceOfSatisfying(MemberLookup.MemberNotFound.class, notFound -> assertThat(
+                        notFound.suggestions()).containsExactly("g.Odd#Odd()", "g.Odd#Odd(int)"));
+    }
+
+    @Test
+    void printedConstructorReferencesRoundTrip() {
+        for (String printed : found("g.Odd#<init>").members().stream().map(MemberMatch::reference).toList()) {
+            assertThat(found(printed).members()).extracting(MemberMatch::reference).containsExactly(printed);
+        }
+    }
+
+    @Test
+    void typeNameWithArgumentsFindsTheConstructorOfATypeWithoutSuchMethod() {
+        assertThat(found("a.Impl#Impl()").members()).extracting(MemberMatch::reference)
+                .containsExactly("a.Impl#Impl()");
+        assertThat(found("g.Plain#Plain(int)").members()).extracting(MemberMatch::reference)
+                .containsExactly("g.Plain#Plain(int)");
+    }
+
+    @Test
+    void initAlwaysMeansTheConstructors() {
+        assertThat(found("g.Odd#<init>").members()).extracting(MemberMatch::reference)
+                .containsExactly("g.Odd#Odd()", "g.Odd#Odd(int)");
+        assertThat(found("g.Odd#<init>(int)").members()).extracting(MemberMatch::reference)
+                .containsExactly("g.Odd#Odd(int)");
+    }
+
+    @Test
+    void onlyAMethodTurnsTheTypeNameIntoAMethodName() {
+        assertThat(found("g.Plain#Plain").members()).extracting(MemberMatch::reference)
+                .as("a field named like the type does not").containsExactly("g.Plain#Plain(int)");
     }
 
     @Test
